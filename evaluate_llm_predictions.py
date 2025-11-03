@@ -1,11 +1,12 @@
 import json
 import random
-import openai
+from openai import OpenAI
+client = OpenAI(api_key="INSERISCI_LA_TUA_API_KEY_QUI")
 from difflib import SequenceMatcher
 from tqdm import tqdm
 
 # === CONFIG ===
-MODEL = "gpt-4o-mini"   # puoi usare gpt-4o, gpt-4-turbo, ecc.
+MODEL = "gpt-5"
 N_SAMPLES = 100          # numero di esempi da testare (riduci per debug)
 DATA_FILE = "output/predictive_pairs.jsonl"
 RESULTS_FILE = "output/llm_predictions.jsonl"
@@ -47,12 +48,12 @@ for p in tqdm(pairs):
     prompt = make_prompt(context)
 
     try:
-        completion = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
-        pred = completion.choices[0].message["content"].strip()
+        pred = response.choices[0].message.content.strip()
     except Exception as e:
         print("Errore:", e)
         continue
