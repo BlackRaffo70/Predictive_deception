@@ -1,0 +1,18 @@
+# Ignora tutti i file Cowrie JSON log
+cowrie_*.json
+*.jsonl
+
+# Ignora cartelle di dataset o output
+data/
+output/
+results/
+logs/
+
+# Ignora notebook temporanei
+*.ipynb_checkpoints/
+
+# Ignora file di sistema o IDE
+.DS_Store
+*.log
+__pycache__/
+*.pyc
