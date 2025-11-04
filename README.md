@@ -1,7 +1,7 @@
 <img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
 
 
- 🍯 Obiettivo del progetto
+ #🍯 Obiettivo del progetto
 
 Tradizionalmente, gli honeypot reagiscono ai comandi malevoli dopo la loro esecuzione.
 Questo progetto esplora un approccio innovativo: predictive deception, dove un LLM (Large Language Model) analizza in tempo reale la sequenza dei comandi inviati da un attaccante per predire il prossimo comando probabile.
@@ -109,34 +109,41 @@ Esempio di file summary.json:
 
 ⸻
 
-🧠 Note metodologiche
-	•	Prompt brevi e in inglese migliorano la precisione.
-	•	Estrarre sempre la prima riga valida del comando previsto.
-	•	Testare vari context-len (1–5 comandi precedenti).
-	•	Misurare sia exact match che similarità testuale (Jaccard / SequenceMatcher).
-	•	Usare rate-limit e backoff per le API gratuite.
-	•	Preferire Ollama locale o GPU universitaria per batch lunghi.
+## 🧠 Note metodologiche
 
-⸻
+- Prompt **brevi** e in **inglese** migliorano la precisione del modello.  
+- Estrarre **solo la prima riga valida** del comando previsto.  
+- Testare diversi valori di **context length** (es. 1–5 comandi precedenti).  
+- Misurare sia **Exact Match** che **similarità testuale** (Jaccard / SequenceMatcher).  
+- Implementare **rate-limit** e **backoff** per l’uso di API gratuite.  
+- Preferire **Ollama locale** o **GPU universitaria** per batch lunghi di test.  
 
-🔧 Possibili estensioni future
-	•	Fine-tuning su dataset SSH per predizioni più accurate.
-	•	Introduzione di top-k accuracy (predizione di più candidati).
-	•	Integrazione diretta con sistemi honeypot (Cowrie / CanaryTokens).
-	•	Analisi semantica dei pattern di attacco (ricognizione, persistence, ecc.).
+---
 
-⸻
+## 🔧 Possibili estensioni future
 
-📚 Riferimenti
-	•	Cowrie Honeypot: https://github.com/cowrie/cowrie
-	•	Canarytokens: https://canarytokens.org / https://github.com/thinkst/canarytokens
-	•	Ollama: https://ollama.com / https://github.com/ollama/ollama
-	•	OpenRouter: https://openrouter.ai
-⸻
-Università di Bologna – Corso di Laurea Magistrale in Ingegneria Informatica
-Progetto di ricerca a cura di:
+- Fine-tuning su dataset SSH per migliorare la **precisione predittiva**.  
+- Introduzione di **Top-k accuracy** (predizione di più comandi candidati).  
+- Integrazione diretta con sistemi honeypot come **Cowrie** o **CanaryTokens**.  
+- Analisi **semantica** dei pattern di attacco (ricognizione, persistence, privilege escalation, ecc.).  
 
-Docente referente: Prof. Michele Colajanni
+---
 
+## 📚 Riferimenti
+
+- 🐍 **Cowrie Honeypot** → [github.com/cowrie/cowrie](https://github.com/cowrie/cowrie)  
+- 🪤 **Canarytokens** → [canarytokens.org](https://canarytokens.org) / [github.com/thinkst/canarytokens](https://github.com/thinkst/canarytokens)  
+- 💻 **Ollama** → [ollama.com](https://ollama.com) / [github.com/ollama/ollama](https://github.com/ollama/ollama)  
+- 🌐 **OpenRouter API** → [openrouter.ai](https://openrouter.ai)  
+
+---
+
+### 🏫 Università di Bologna  
+**Corso di Laurea Magistrale in Ingegneria Informatica**  
+
+📘 *Progetto di ricerca:* **🍯 Predictive Deception – LLM-based Command Anticipation in SSH Honeypots**  
+
+👨‍🏫 *Docente referente:* **Prof. Michele Colajanni**  
+👨‍💻 *Studenti:* Raffaele Neri, Matteo Melotti, Enrico Borsetti  
 ⸻
 
