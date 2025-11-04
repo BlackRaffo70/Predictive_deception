@@ -1,6 +1,7 @@
 <img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
 
-🎯 Obiettivo del progetto
+
+ 🍯 Obiettivo del progetto
 
 Tradizionalmente, gli honeypot reagiscono ai comandi malevoli dopo la loro esecuzione.
 Questo progetto esplora un approccio innovativo: predictive deception, dove un LLM (Large Language Model) analizza in tempo reale la sequenza dei comandi inviati da un attaccante per predire il prossimo comando probabile.
@@ -14,7 +15,7 @@ Questo consente di:
 
 📦 Contenuto tipico del progetto
 
-requirements.txt:
+**requirements.txt:**
 ```bash
 requests
 tqdm
@@ -50,7 +51,7 @@ Predictive_deception/
 
 ⸻
 
-🧭 Workflow del progetto
+🧭 **Workflow del progetto**
 ```bash
 Step	Script	Input	Output	Descrizione
 1️⃣	inspect_cowrie_json.py	data/cowrie_2020-02-29.json	—	Ispeziona il file raw per verificare la struttura
@@ -62,7 +63,7 @@ Step	Script	Input	Output	Descrizione
 
 ⸻
 
-🚀 Esempi di utilizzo rapido
+🚀 **Esempi di utilizzo rapido**
 
 1️⃣ Analisi dataset Cowrie:
 ```bash
