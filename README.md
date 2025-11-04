@@ -13,7 +13,7 @@ Questo consente di:
 
 ⸻
 
-📦 Contenuto tipico del progetto
+## 📦 Contenuto tipico del progetto
 
 **requirements.txt:**
 ```bash
@@ -25,7 +25,7 @@ argparse
 
 ⸻
 
-📁 Struttura del repository
+## 📁 Struttura del repository
 
 Predictive_deception/
 │
@@ -51,7 +51,7 @@ Predictive_deception/
 
 ⸻
 
-🧭 **Workflow del progetto**
+## 🧭 **Workflow del progetto**
 ```bash
 Step	Script	Input	Output	Descrizione
 1️⃣	inspect_cowrie_json.py	data/cowrie_2020-02-29.json	—	Ispeziona il file raw per verificare la struttura
@@ -63,7 +63,7 @@ Step	Script	Input	Output	Descrizione
 
 ⸻
 
-🚀 **Esempi di utilizzo rapido**
+## 🚀 **Esempi di utilizzo rapido**
 
 1️⃣ Analisi dataset Cowrie:
 ```bash
@@ -89,7 +89,7 @@ python evaluate_LLM_OpenRouter.py --input output/predictive_pairs.jsonl --model 
 
 ⸻
 
-📊 Output di esempio
+## 📊 Output di esempio
 
 Esempio di riga in ollama_results.jsonl:
 ```bash
