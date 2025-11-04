@@ -1,7 +1,7 @@
 <img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
 
 
- #🍯 Obiettivo del progetto
+ ## 🍯 Obiettivo del progetto
 
 Tradizionalmente, gli honeypot reagiscono ai comandi malevoli dopo la loro esecuzione.
 Questo progetto esplora un approccio innovativo: predictive deception, dove un LLM (Large Language Model) analizza in tempo reale la sequenza dei comandi inviati da un attaccante per predire il prossimo comando probabile.
@@ -137,13 +137,17 @@ Esempio di file summary.json:
 - 🌐 **OpenRouter API** → [openrouter.ai](https://openrouter.ai)  
 
 ---
+## 👥 Autori
 
-### 🏫 Università di Bologna  
-**Corso di Laurea Magistrale in Ingegneria Informatica**  
+| | | | |
+|:--:|:--:|:--:|:--:|
+| <a href="https://github.com/BlackRaffo70"><img src="https://github.com/BlackRaffo70.png" width="110" alt="avatar Raffaele Neri"></a> | <a href="https://github.com/melottimatteo"><img src="https://github.com/melottimatteo.png" width="110" alt="avatar Matteo Melotti"></a> | <a href="https://github.com/enricoborsetti"><img src="https://github.com/enricoborsetti.png" width="110" alt="avatar Enrico Borsetti"></a> | <a href="https://github.com/sebastianogiannitti"><img src="https://github.com/sebastianogiannitti.png" width="110" alt="avatar Sebastiano Giannitti"></a> |
+| **Raffaele Neri**<br/>[@BlackRaffo70](https://github.com/BlackRaffo70) | **Matteo Melotti**<br/>[@melottimatteo](https://github.com/melottimatteo) | **Enrico Borsetti**<br/>[@enricoborsetti](https://github.com/enricoborsetti) | **Sebastiano Giannitti**<br/>[@sebastianogiannitti](https://github.com/sebastianogiannitti) |
 
-📘 *Progetto di ricerca:* **🍯 Predictive Deception – LLM-based Command Anticipation in SSH Honeypots**  
+---
 
-👨‍🏫 *Docente referente:* **Prof. Michele Colajanni**  
-👨‍💻 *Studenti:* Raffaele Neri, Matteo Melotti, Enrico Borsetti  
-⸻
+📘 *Progetto di ricerca:*  
+**🍯 Predictive Deception – LLM-based Command Anticipation in SSH Honeypots**  
+Università di Bologna – Corso di Laurea Magistrale in Ingegneria Informatica  
 
+👨‍🏫 *Docente referente:* **Prof. Michele Colajanni**
