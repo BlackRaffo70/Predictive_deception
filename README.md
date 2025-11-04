@@ -18,8 +18,6 @@ Questo consente di:
 
 ## 📦 Contenuto tipico del progetto
 
-**requirements.txt**
-
 **requirements.txt:**
 ```bash
 requests
