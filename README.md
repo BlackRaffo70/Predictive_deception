@@ -141,8 +141,8 @@ Esempio di file summary.json:
 
 | | | | |
 |:--:|:--:|:--:|:--:|
-| <a href="https://github.com/BlackRaffo70"><img src="https://github.com/BlackRaffo70.png" width="110" alt="avatar Raffaele Neri"></a> | <a href="https://github.com/melottimatteo"><img src="https://github.com/melottimatteo.png" width="110" alt="avatar Matteo Melotti"></a> | <a href="https://github.com/enricoborsetti"><img src="https://github.com/enricoborsetti.png" width="110" alt="avatar Enrico Borsetti"></a> | <a href="https://github.com/sebastianogiannitti"><img src="https://github.com/sebastianogiannitti.png" width="110" alt="avatar Sebastiano Giannitti"></a> |
-| **Raffaele Neri**<br/>[@BlackRaffo70](https://github.com/BlackRaffo70) | **Matteo Melotti**<br/>[@melottimatteo](https://github.com/melottimatteo) | **Enrico Borsetti**<br/>[@enricoborsetti](https://github.com/enricoborsetti) | **Sebastiano Giannitti**<br/>[@sebastianogiannitti](https://github.com/sebastianogiannitti) |
+| <a href="https://github.com/BlackRaffo70"><img src="https://github.com/BlackRaffo70.png" width="110" alt="avatar Raffaele Neri"></a> | <a href="https://github.com/melottimatteo"><img src="https://github.com/melottimatteo.png" width="110" alt="avatar Matteo Melotti"></a> | <a href="https://github.com/enricoborsetti"><img src="https://github.com/enricoborsetti.png" width="110" alt="avatar Enrico Borsetti"></a> |
+| **Raffaele Neri**<br/>[@BlackRaffo70](https://github.com/BlackRaffo70) | **Matteo Melotti**<br/>[@melottimatteo](https://github.com/melottimatteo) | **Enrico Borsetti**<br/>[@enricoborsetti](https://github.com/enricoborsetti) | 
 
 ---
 
