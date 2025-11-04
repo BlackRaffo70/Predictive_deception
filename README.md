@@ -1,11 +1,4 @@
-🧠 Predictive Deception — LLM-based Command Anticipation in SSH Honeypots
-
-Università di Bologna – Corso di Laurea Magistrale in Ingegneria Informatica
-Progetto di ricerca a cura di:
-Raffaele Neri, Matteo Melotti, Enrico Borsetti
-Docente referente: Prof. Michele Colajanni
-
-⸻
+<img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
 
 🎯 Obiettivo del progetto
 
@@ -138,4 +131,11 @@ Esempio di file summary.json:
 	•	Canarytokens: https://canarytokens.org / https://github.com/thinkst/canarytokens
 	•	Ollama: https://ollama.com / https://github.com/ollama/ollama
 	•	OpenRouter: https://openrouter.ai
+⸻
+Università di Bologna – Corso di Laurea Magistrale in Ingegneria Informatica
+Progetto di ricerca a cura di:
+
+Docente referente: Prof. Michele Colajanni
+
+⸻
 
