@@ -1,19 +1,24 @@
 <img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
 
+# 🍯 Predictive Deception — LLM-based Command Anticipation in SSH Honeypots
 
- ## 🍯 Obiettivo del progetto
+---
 
-Tradizionalmente, gli honeypot reagiscono ai comandi malevoli dopo la loro esecuzione.
-Questo progetto esplora un approccio innovativo: predictive deception, dove un LLM (Large Language Model) analizza in tempo reale la sequenza dei comandi inviati da un attaccante per predire il prossimo comando probabile.
+## 🎯 Obiettivo del progetto
+
+Tradizionalmente, gli honeypot reagiscono ai comandi malevoli **dopo** la loro esecuzione.  
+Questo progetto esplora un approccio innovativo: **Predictive Deception**, dove un **LLM (Large Language Model)** analizza in tempo reale la sequenza dei comandi inviati da un attaccante per **predire il prossimo comando probabile**.
 
 Questo consente di:
-	•	Pre-posizionare file o artefatti falsi prima che l’attaccante li richieda.
-	•	Attivare canary tokens o logging avanzato al momento dell’accesso.
-	•	Aumentare l’engagement dell’attaccante e migliorare la qualità dell’intelligence raccolta.
+- 🪤 Pre-posizionare file o artefatti falsi prima che l’attaccante li richieda.  
+- 🧠 Attivare canary tokens o logging avanzato al momento dell’accesso.  
+- 🕵️‍♂️ Aumentare l’engagement dell’attaccante e migliorare la qualità dell’intelligence raccolta.
 
-⸻
+---
 
 ## 📦 Contenuto tipico del progetto
+
+**requirements.txt**
 
 **requirements.txt:**
 ```bash
@@ -50,16 +55,19 @@ Predictive_deception/
 
 
 ⸻
+---
 
-## 🧭 **Workflow del progetto**
-```bash
-Step	Script	Input	Output	Descrizione
-1️⃣	inspect_cowrie_json.py	data/cowrie_2020-02-29.json	—	Ispeziona il file raw per verificare la struttura
-2️⃣	analyze_cowrie_dataset.py	Cowrie JSON	output/cowrie_sessions.jsonl	Estrae eventi e comandi per sessione
-3️⃣	build_predictive_pairs.py	output/cowrie_sessions.jsonl	output/predictive_pairs.jsonl	Genera coppie sliding-window (context → next)
-4️⃣	evaluate_ollama.py	output/predictive_pairs.jsonl	output/ollama_results.jsonl	Valuta modelli locali via Ollama
-5️⃣	evaluate_LLM_OpenRouter.py	output/predictive_pairs.jsonl	output/results.jsonl, output/summary.json	Valuta modelli cloud via OpenRouter API
-```
+## 🧭 Workflow del progetto
+
+| Step | Script | Input | Output | Descrizione |
+|------|--------|--------|---------|-------------|
+| 1️⃣ | `inspect_cowrie_json.py` | `data/cowrie_2020-02-29.json` | — | Ispeziona il file raw per verificare la struttura |
+| 2️⃣ | `analyze_cowrie_dataset.py` | Cowrie JSON | `output/cowrie_sessions.jsonl` | Estrae eventi e comandi per sessione |
+| 3️⃣ | `build_predictive_pairs.py` | `output/cowrie_sessions.jsonl` | `output/predictive_pairs.jsonl` | Genera coppie sliding-window *(context → next)* |
+| 4️⃣ | `evaluate_ollama.py` | `output/predictive_pairs.jsonl` | `output/ollama_results.jsonl` | Valuta modelli locali via Ollama |
+| 5️⃣ | `evaluate_LLM_OpenRouter.py` | `output/predictive_pairs.jsonl` | `output/results.jsonl`, `output/summary.json` | Valuta modelli cloud via API OpenRouter |
+
+
 
 ⸻
 
@@ -109,6 +117,8 @@ Esempio di file summary.json:
 
 ⸻
 
+---
+
 ## 🧠 Note metodologiche
 
 - Prompt **brevi** e in **inglese** migliorano la precisione del modello.  
@@ -137,12 +147,13 @@ Esempio di file summary.json:
 - 🌐 **OpenRouter API** → [openrouter.ai](https://openrouter.ai)  
 
 ---
+
 ## 👥 Autori
 
-| | | | |
+| | | |
 |:--:|:--:|:--:|
-| <a href="https://github.com/BlackRaffo70"><img src="https://github.com/BlackRaffo70.png" width="110" alt="avatar Raffaele Neri"></a> | <a href="https://github.com/melottimatteo"><img src="https://github.com/melottimatteo.png" width="110" alt="avatar Matteo Melotti"></a> | <ahref="https://github.com/enricoborsetti"><img src="https://github.com/enricoborsetti.png" width="110" alt="avatar Enrico Borsetti"></a> |
-| **Raffaele Neri**<br/>[@BlackRaffo70](https://github.com/BlackRaffo70) | **Matteo Melotti**<br/>[@melottimatteo](https://github.com/melottimatteo) | **Enrico Borsetti**<br/>[@enricoborsetti](https://github.com/enricoborsetti) | 
+| <a href="https://github.com/BlackRaffo70"><img src="https://github.com/BlackRaffo70.png" width="110" alt="avatar Raffaele Neri"></a> | <a href="https://github.com/melottimatteo"><img src="https://github.com/melottimatteo.png" width="110" alt="avatar Matteo Melotti"></a> | <a href="https://github.com/enricoborsetti"><img src="https://github.com/enricoborsetti.png" width="110" alt="avatar Enrico Borsetti"></a> |
+| **Raffaele Neri**<br/>[@BlackRaffo70](https://github.com/BlackRaffo70) | **Matteo Melotti**<br/>[@melottimatteo](https://github.com/melottimatteo) | **Enrico Borsetti**<br/>[@enricoborsetti](https://github.com/enricoborsetti) |
 
 ---
 
