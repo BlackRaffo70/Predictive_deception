@@ -29,7 +29,7 @@ argparse
 ⸻
 
 ## 📁 Struttura del repository
-
+```bash
 Predictive_deception/
 │
 ├── analyze_cowrie_dataset.py         → Analizza dataset Cowrie e crea sessioni
@@ -50,7 +50,7 @@ Predictive_deception/
 │
 ├── requirements.txt
 └── README.md
-
+```
 
 ⸻
 ---
