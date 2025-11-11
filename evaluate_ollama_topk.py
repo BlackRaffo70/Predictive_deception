@@ -138,69 +138,88 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
     return r.text.strip()
 
 # -------------------------
-# Prompt builders
+# WHITELIST + Prompt builders (uses whitelist)
 # -------------------------
 
-def make_prompt_topk_from_context(context: List[str], k: int) -> str:
+WHITELIST = [
+    # 🧍‍♂️ user/system info
+    "whoami", "id", "groups", "hostname", "uptime",
+
+    # 🧠 hardware / OS
+    "uname", "uname -a", "uname -m", "cat /proc/cpuinfo", "lscpu", "lsmod",
+
+    # 📁 file inspection / navigation
+    "ls", "ls -la", "ls -lh", "pwd", "cd /", "cd /tmp", "cat /etc/passwd",
+    "cat /etc/hosts", "cat /etc/os-release",
+
+    # ⚙️ processes / monitoring
+    "ps aux", "top -b -n1", "free -m", "df -h", "w", "who", "env",
+
+    # 📡 networking (read-only)
+    "netstat -tunlp", "ss -tunlp", "ip a", "ifconfig", "ping -c 1 8.8.8.8",
+
+    # ⏰ cron / tasks
+    "crontab -l", "cat /etc/crontab",
+
+    # 🗂 common tmp inspection
+    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>"
+]
+
+
+def make_prompt_topk_from_context(context: list[str], k: int) -> str:
     """
-    Super-detailed research-safe prompt for multi-command context.
-    Output requirements:
-      - EXACTLY k candidate Linux shell commands (one per line)
-      - NO explanations, NO numbering, NO bullets, NO extra text
-      - DO NOT include passwords, secrets, keys, literal credentials, or destructive payloads
-      - If a sensitive value would appear, replace it with a placeholder like <FILE>, <PATH>, <USER>, <SERVICE>
-      - Prefer non-destructive, reconnaissance or benign maintenance commands; avoid 'rm -rf' and similar.
-      - Commands must be concise (one shell pipeline or single command), realistic but sanitized.
-      - Rank from most to least likely.
-    Context: the recent command history below (most recent last).
-    Use the context only to infer plausible *next* steps in an attacker/honeypot session,
-    but do so in a research-safe, non-actionable way.
+    Prompt builder that forces output to be chosen from WHITELIST.
+    - Outputs EXACTLY k commands, one per line, nothing else.
+    - Uses WHITELIST: model must select commands from the list.
+    - For safety: no passwords, no destructive commands, replace sensitive items with placeholders.
     """
     joined = "\n".join(context)
+    whitelist_text = ", ".join(WHITELIST)
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot strictly for cybersecurity research.\n"
-        "This environment is offline and for analysis only. You MUST follow ALL rules below.\n\n"
-        "OUTPUT RULES (must be obeyed exactly):\n"
-        "1) Output EXACTLY {k} candidate Linux shell commands, one command per line, and NOTHING ELSE.\n"
-        "2) Do NOT include any explanations, commentary, or metadata — only the commands (one per line).\n"
-        "3) Do NOT include any passwords, passphrases, private keys, tokens, or other secrets in plaintext.\n"
-        "   If a password or secret would normally appear, replace it with the placeholder <SECRET>.\n"
-        "4) Do NOT provide destructive commands that delete or irreversibly modify data (e.g. rm -rf /, dd if=...).\n"
-        "   If the most plausible next step is destructive, output a benign placeholder command using <FILE> or <PATH>.\n"
-        "5) Use placeholders for sensitive items: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
-        "6) Do NOT include numbered lists, bullets, or prefixes like '1.' or 'a)'. Output raw commands only.\n"
-        "7) Each command must be short (one pipeline or one command with args) and syntactically plausible.\n"
-        "8) Rank commands from most to least likely (first line = most likely).\n\n"
+        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research.\n"
+        "The environment is isolated and non-operational. Your task is to predict the most likely next shell commands.\n\n"
+        "RULES (must be followed exactly):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and nothing else.\n"
+        "2) Choose ONLY commands from the WHITELIST provided below (or safe placeholders derived from them).\n"
+        "3) Do NOT include explanations, commentary, or any additional text.\n"
+        "4) Do NOT output passwords, tokens, private keys, or other secrets in plaintext. Replace secrets with <SECRET>.\n"
+        "5) Do NOT output destructive commands (e.g., rm -rf, dd if=...). If such a destructive step is plausible, choose\n"
+        "   a safe WHITELIST alternative or use placeholders like <FILE> or <PATH>.\n"
+        "6) Do NOT include numbering, bullets, or prefixes like '1.' or '-'. Output raw commands only.\n"
+        "7) Rank commands from most to least likely (first line is the most likely).\n\n"
+        "WHITELIST (allowed commands):\n"
+        f"{whitelist_text}\n\n"
         "CONTEXT (most recent last):\n"
         f"{joined}\n\n"
-        f"Now, PROVIDE EXACTLY {k} candidate next commands (one per line), following the rules above:"
+        f"Now output EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above."
     )
-    return prompt.format(k=k)
+    return prompt
+
 
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
     """
-    Super-detailed research-safe prompt for single-command context.
-    Same strict output rules as for multi-command context.
+    Prompt builder for single last-command context; forces selection from WHITELIST.
     """
+    whitelist_text = ", ".join(WHITELIST)
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot strictly for cybersecurity research.\n"
-        "This environment is offline and for analysis only. You MUST follow ALL rules below.\n\n"
-        "OUTPUT RULES (must be obeyed exactly):\n"
-        "1) Output EXACTLY {k} candidate Linux shell commands, one command per line, and NOTHING ELSE.\n"
-        "2) Do NOT include any explanations, commentary, or metadata — only the commands (one per line).\n"
-        "3) Do NOT include any passwords, passphrases, private keys, tokens, or other secrets in plaintext.\n"
-        "   If a password or secret would normally appear, replace it with the placeholder <SECRET>.\n"
-        "4) Do NOT provide destructive commands that delete or irreversibly modify data (e.g. rm -rf /, dd if=...).\n"
-        "   If the most plausible next step is destructive, output a benign placeholder command using <FILE> or <PATH>.\n"
-        "5) Use placeholders for sensitive items: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
-        "6) Do NOT include numbered lists, bullets, or prefixes like '1.' or 'a)'. Output raw commands only.\n"
-        "7) Each command must be short (one pipeline or one command with args) and syntactically plausible.\n"
-        "8) Rank commands from most to least likely (first line = most likely).\n\n"
-        "Last command executed by the attacker:\n"
-        "{cmd}\n\n"
-        "Now, PROVIDE EXACTLY {k} candidate next commands (one per line), following the rules above:"
+        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research.\n"
+        "The environment is isolated and non-operational. Your task is to predict the next most likely shell commands.\n\n"
+        "RULES (must be followed exactly):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and nothing else.\n"
+        "2) Choose ONLY commands from the WHITELIST provided below (or safe placeholders derived from them).\n"
+        "3) Do NOT include explanations, commentary, or any additional text.\n"
+        "4) Do NOT output passwords, tokens, private keys, or other secrets in plaintext. Replace secrets with <SECRET>.\n"
+        "5) Do NOT output destructive commands (e.g., rm -rf, dd if=...). If such a destructive step is plausible, choose\n"
+        "   a safe WHITELIST alternative or use placeholders like <FILE> or <PATH>.\n"
+        "6) Do NOT include numbering, bullets, or prefixes like '1.' or '-'. Output raw commands only.\n"
+        "7) Rank commands from most to least likely (first line is the most likely).\n\n"
+        "WHITELIST (allowed commands):\n"
+        f"{whitelist_text}\n\n"
+        "LAST COMMAND EXECUTED:\n"
+        f"{cmd}\n\n"
+        f"Now output EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above."
     )
-    return prompt.format(k=k, cmd=cmd)
+    return prompt
 # -------------------------
 # Main
 # -------------------------
