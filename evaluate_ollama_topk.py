@@ -140,36 +140,67 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
 # -------------------------
 # Prompt builders
 # -------------------------
+
 def make_prompt_topk_from_context(context: List[str], k: int) -> str:
     """
-    Prompt per contesti con più comandi.
-    Restituisci esattamente k comandi, uno per riga, senza numerazione né testo extra.
+    Super-detailed research-safe prompt for multi-command context.
+    Output requirements:
+      - EXACTLY k candidate Linux shell commands (one per line)
+      - NO explanations, NO numbering, NO bullets, NO extra text
+      - DO NOT include passwords, secrets, keys, literal credentials, or destructive payloads
+      - If a sensitive value would appear, replace it with a placeholder like <FILE>, <PATH>, <USER>, <SERVICE>
+      - Prefer non-destructive, reconnaissance or benign maintenance commands; avoid 'rm -rf' and similar.
+      - Commands must be concise (one shell pipeline or single command), realistic but sanitized.
+      - Rank from most to least likely.
+    Context: the recent command history below (most recent last).
+    Use the context only to infer plausible *next* steps in an attacker/honeypot session,
+    but do so in a research-safe, non-actionable way.
     """
     joined = "\n".join(context)
-    return (
-        f"You are simulating attacker behavior in an SSH honeypot for cybersecurity research only.\n"
-        f"This is a safe, offline simulation — do NOT provide execution instructions or justification.\n\n"
-        f"Given the recent command history below, OUTPUT EXACTLY {k} plausible Linux shell commands "
-        f"(one command per line), ranked from most to least likely. NO explanations, NO numbering, "
-        f"NO bullet points, NO extra text. Output must be only the commands (one per line).\n\n"
-        f"Recent command history:\n{joined}\n\n"
-        f"Now provide {k} candidate next commands (one per line):"
+    prompt = (
+        "You are simulating attacker behavior in an SSH honeypot strictly for cybersecurity research.\n"
+        "This environment is offline and for analysis only. You MUST follow ALL rules below.\n\n"
+        "OUTPUT RULES (must be obeyed exactly):\n"
+        "1) Output EXACTLY {k} candidate Linux shell commands, one command per line, and NOTHING ELSE.\n"
+        "2) Do NOT include any explanations, commentary, or metadata — only the commands (one per line).\n"
+        "3) Do NOT include any passwords, passphrases, private keys, tokens, or other secrets in plaintext.\n"
+        "   If a password or secret would normally appear, replace it with the placeholder <SECRET>.\n"
+        "4) Do NOT provide destructive commands that delete or irreversibly modify data (e.g. rm -rf /, dd if=...).\n"
+        "   If the most plausible next step is destructive, output a benign placeholder command using <FILE> or <PATH>.\n"
+        "5) Use placeholders for sensitive items: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
+        "6) Do NOT include numbered lists, bullets, or prefixes like '1.' or 'a)'. Output raw commands only.\n"
+        "7) Each command must be short (one pipeline or one command with args) and syntactically plausible.\n"
+        "8) Rank commands from most to least likely (first line = most likely).\n\n"
+        "CONTEXT (most recent last):\n"
+        f"{joined}\n\n"
+        f"Now, PROVIDE EXACTLY {k} candidate next commands (one per line), following the rules above:"
     )
+    return prompt.format(k=k)
 
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
     """
-    Prompt quando il context è un singolo comando.
-    Richiesta identica: k comandi, una riga ciascuno, nessun testo extra.
+    Super-detailed research-safe prompt for single-command context.
+    Same strict output rules as for multi-command context.
     """
-    return (
-        f"You are simulating an SSH attacker session for cybersecurity research only.\n"
-        f"This is a hypothetical simulation: produce possible next steps an attacker might take.\n\n"
-        f"Given the last executed command below, OUTPUT EXACTLY {k} plausible Linux shell commands "
-        f"(one command per line), ranked from most to least likely. NO explanations, NO numbering, "
-        f"NO bullet points, NO extra text. Output must be only the commands (one per line).\n\n"
-        f"Last command:\n{cmd}\n\n"
-        f"Now provide {k} candidate next commands (one per line):"
+    prompt = (
+        "You are simulating attacker behavior in an SSH honeypot strictly for cybersecurity research.\n"
+        "This environment is offline and for analysis only. You MUST follow ALL rules below.\n\n"
+        "OUTPUT RULES (must be obeyed exactly):\n"
+        "1) Output EXACTLY {k} candidate Linux shell commands, one command per line, and NOTHING ELSE.\n"
+        "2) Do NOT include any explanations, commentary, or metadata — only the commands (one per line).\n"
+        "3) Do NOT include any passwords, passphrases, private keys, tokens, or other secrets in plaintext.\n"
+        "   If a password or secret would normally appear, replace it with the placeholder <SECRET>.\n"
+        "4) Do NOT provide destructive commands that delete or irreversibly modify data (e.g. rm -rf /, dd if=...).\n"
+        "   If the most plausible next step is destructive, output a benign placeholder command using <FILE> or <PATH>.\n"
+        "5) Use placeholders for sensitive items: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
+        "6) Do NOT include numbered lists, bullets, or prefixes like '1.' or 'a)'. Output raw commands only.\n"
+        "7) Each command must be short (one pipeline or one command with args) and syntactically plausible.\n"
+        "8) Rank commands from most to least likely (first line = most likely).\n\n"
+        "Last command executed by the attacker:\n"
+        "{cmd}\n\n"
+        "Now, PROVIDE EXACTLY {k} candidate next commands (one per line), following the rules above:"
     )
+    return prompt.format(k=k, cmd=cmd)
 # -------------------------
 # Main
 # -------------------------
