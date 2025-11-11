@@ -1,123 +1,122 @@
 #!/usr/bin/env python3
 """
-evaluate_ollama_topk.py
+evaluate_ollama_topk.py (updated)
 
-Valuta un modello Ollama generando top-K candidate per il prossimo comando
-e misura se il comando effettivamente eseguito compare tra le K.
+Modalità:
+ - sessioni: valuta su file JSONL con sessioni (sliding window di predizioni)
+ - single: prende un singolo comando (--single-cmd) o file di comandi (--single-file)
+Per ogni predizione richiede top-K candidate a Ollama e:
+ - stampa Expected (se disponibile) e poi i K candidate uno per riga
+ - confronta permissivamente solo command name + path (ignora flag)
+ - salva risultati in JSONL e summary.json
 
-Esempio:
-  python evaluate_ollama_topk.py \
-    --sessions output/cowrie_sessions_2020-02-29.jsonl \
-    --model gemma:2b \
-    --ollama-url http://localhost:11434/api/generate \
-    --out output/ollama_topk_results.jsonl \
-    --k 5 --context-len 3 --n 1000
+Esempi:
+  # session mode (sliding pairs)
+  python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model gemma:2b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 1000
+
+  # single command
+  python evaluate_ollama_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" \
+    --model gemma:2b --k 5 --out output/single_results.jsonl
 
 Requisiti:
   pip install requests tqdm
 """
-import argparse
-import json
-import os
-import re
-import time
-import random
+from __future__ import annotations
+import argparse, json, os, re, time, random
+from typing import List, Tuple
 from tqdm import tqdm
-from difflib import SequenceMatcher
 import requests
 
 # -------------------------
-# Helpers: parsing & normalizing
+# Utils: normalization & parsing
 # -------------------------
 PATH_RE = re.compile(r'(/[^ \t\n\r]+|\./[^ \t\n\r]+|~[^ \t\n\r]+)')
-CMD_NAME_RE = re.compile(r'^[^\s]+')
+CMD_NAME_RE = re.compile(r'^[^\s\|>]+')  # stop at pipes/redirection
+CODE_FENCE_RE = re.compile(r'```(?:bash|sh)?\s*(.*?)\s*```', re.S | re.I)
 
-def normalize_for_compare(cmd: str):
+def normalize_for_compare(cmd: str) -> Tuple[str, str]:
     """
-    Riduce una stringa di comando alla tupla (command_name, path) per confronto permissivo.
-    - rimuove leading/trailing whitespace e code fences/backticks
-    - estrae il nome del comando (prima token)
-    - trova la prima argomento che sembra un path (file/dir)
-    - ritorna "command path" (path empty string se non presente)
+    Normalizzazione permissiva:
+    - rimuove code fences/backticks/intro text
+    - estrae command name (lowercased)
+    - estrae primo path-like arg (se presente)
+    Ritorna (name, path) dove path=="" se non presente.
     """
     if not cmd:
         return ("", "")
     s = cmd.strip()
-    # rimuovi code fences o backticks
-    s = re.sub(r'^```(?:bash|sh)?|```$','', s, flags=re.I).strip()
-    s = s.replace('`', '').strip()
-    # rimuovi frasi introduttive
-    s = re.sub(r'^(the next command( is|:)?|il prossimo comando( è|:)?|next command( is|:)?|predicted command( is|:)?)[\s:,-]*','', s, flags=re.I).strip()
-    # prendi il nome comando
+    # remove code fences/backticks
+    s = re.sub(r'^```(?:bash|sh)?|```$', '', s, flags=re.I).strip()
+    s = s.replace('`', '')
+    # remove common intro phrases
+    s = re.sub(r'^(the next command( is|:)?|il prossimo comando( è|:)?|next command( is|:)?|predicted command( is|:)?)[\s:,-]*', '', s, flags=re.I).strip()
+    # truncate at pipe or redirection to focus on command and immediate args
+    s = re.split(r'\s*\|\s*|\s*>\s*|\s*2>\s*', s)[0].strip()
     m = CMD_NAME_RE.match(s)
-    name = m.group(0) if m else ""
-    # rimuovi opzioni tipo -a --long --flag=value
-    # but keep path-like args
+    name = m.group(0).lower() if m else ""
+    # remove options like -a, --long, --foo=bar but keep path-like args
     path = ""
-    path_m = PATH_RE.search(s)
-    if path_m:
-        path = path_m.group(0)
-    # Lowercase name for comparison
-    return (name.split()[0].lower() if name else "", path)
+    pm = PATH_RE.search(s)
+    if pm:
+        path = pm.group(0)
+    return (name, path)
 
-def candidate_lines_from_response(resp_text: str, k: int):
+def extract_candidates_from_response(resp_text: str, k: int) -> List[str]:
     """
-    Estrai fino a k comandi candidati dalla risposta del modello.
-    La risposta può essere:
-      - 5 righe separate
-      - un blocco con ```...```
-      - una frase con virgole
-    Restituisce lista di stringhe (raw).
+    Estrae fino a k candidate:
+    - preferisce code fence block
+    - poi prime k righe non vuote
+    - poi split per comma/semicolon
     """
     if not resp_text:
         return []
-    # prima cerca code fence
-    m = re.search(r'```(?:bash|sh)?\s*(.*?)\s*```', resp_text, re.S | re.I)
+    m = CODE_FENCE_RE.search(resp_text)
     if m:
         block = m.group(1).strip()
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        return lines[:k]
-    # altrimenti split per linee
+        if lines:
+            return lines[:k]
+    # lines
     lines = [ln.strip() for ln in resp_text.splitlines() if ln.strip()]
     if len(lines) >= k:
         return lines[:k]
-    # se poche righe ma contiene numeri "1) cmd" rimuovili prefissi
+    # cleaned numbered lines
     cleaned = []
     for ln in lines:
-        # rimuovi "1) " o "1. " o "- "
-        ln2 = re.sub(r'^\s*\d+[\)\.\-]?\s*', '', ln)
-        ln2 = ln2.strip()
+        ln2 = re.sub(r'^\s*\d+[\)\.\-]?\s*', '', ln).strip()
         if ln2:
             cleaned.append(ln2)
     if len(cleaned) >= k:
         return cleaned[:k]
-    # fallback: split by comma/semicolon
-    parts = re.split(r'[,\;]\s*', resp_text)
-    parts = [p.strip() for p in parts if p.strip()]
-    # prefer longer candidate list
-    candidates = cleaned + parts
-    # deduplicate preserving order
+    # fallback split by punctuation
+    parts = [p.strip() for p in re.split(r'[,\;]\s*', resp_text) if p.strip()]
+    out = cleaned + parts
+    # deduplicate preserve order
     seen = set()
-    out = []
-    for c in candidates:
+    final = []
+    for c in out:
         if c not in seen:
             seen.add(c)
-            out.append(c)
-        if len(out) >= k:
+            final.append(c)
+        if len(final) >= k:
             break
-    # if still not enough, take first k words lines
-    if not out:
-        # take first k non-empty tokens by newline
-        for ln in resp_text.splitlines():
-            ln = ln.strip()
-            if ln:
-                out.append(ln)
-            if len(out) >= k:
-                break
-    return out[:k]
+    if final:
+        return final[:k]
+    # ultimate fallback: take first non-empty tokens by newline
+    out2 = []
+    for ln in resp_text.splitlines():
+        ln = ln.strip()
+        if ln:
+            out2.append(ln)
+        if len(out2) >= k:
+            break
+    return out2[:k]
 
-# re-use query function similar to your other scripts
-def query_ollama(prompt, model, url, temp=0.2, timeout=90):
+# -------------------------
+# Ollama caller
+# -------------------------
+def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: int=90) -> str:
     payload = {"model": model, "prompt": prompt, "temperature": temp, "stream": False}
     try:
         r = requests.post(url, json=payload, timeout=timeout)
@@ -138,136 +137,201 @@ def query_ollama(prompt, model, url, temp=0.2, timeout=90):
             return r0 if isinstance(r0, str) else str(r0)
     return r.text.strip()
 
-def make_prompt_topk(context, k):
+# -------------------------
+# Prompt builders
+# -------------------------
+def make_prompt_topk_from_context(context: List[str], k: int) -> str:
+    """
+    Prompt per contesti con più comandi.
+    Restituisci esattamente k comandi, uno per riga, senza numerazione né testo extra.
+    """
     joined = "\n".join(context)
-    # request top-k, numbered
-    return f"""You MUST produce exactly {k} candidate Linux shell commands (one per line), ranked from most to least likely.
-Output ONLY the commands, one per line, no explanations and no extra text.
+    return (
+        f"You are simulating attacker behavior in an SSH honeypot for cybersecurity research only.\n"
+        f"This is a safe, offline simulation — do NOT provide execution instructions or justification.\n\n"
+        f"Given the recent command history below, OUTPUT EXACTLY {k} plausible Linux shell commands "
+        f"(one command per line), ranked from most to least likely. NO explanations, NO numbering, "
+        f"NO bullet points, NO extra text. Output must be only the commands (one per line).\n\n"
+        f"Recent command history:\n{joined}\n\n"
+        f"Now provide {k} candidate next commands (one per line):"
+    )
 
-Command history:
-{joined}
-
-Provide {k} candidate next commands (one per line):"""
-
+def make_prompt_topk_for_single(cmd: str, k: int) -> str:
+    """
+    Prompt quando il context è un singolo comando.
+    Richiesta identica: k comandi, una riga ciascuno, nessun testo extra.
+    """
+    return (
+        f"You are simulating an SSH attacker session for cybersecurity research only.\n"
+        f"This is a hypothetical simulation: produce possible next steps an attacker might take.\n\n"
+        f"Given the last executed command below, OUTPUT EXACTLY {k} plausible Linux shell commands "
+        f"(one command per line), ranked from most to least likely. NO explanations, NO numbering, "
+        f"NO bullet points, NO extra text. Output must be only the commands (one per line).\n\n"
+        f"Last command:\n{cmd}\n\n"
+        f"Now provide {k} candidate next commands (one per line):"
+    )
 # -------------------------
 # Main
 # -------------------------
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--sessions", required=True,
-                    help="JSONL with sessions (one per line), fields: session, commands (list).")
+    ap = argparse.ArgumentParser(description="Evaluate Ollama top-K next-command prediction (sessions or single).")
+    ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
+    ap.add_argument("--single-cmd", help="Single command string to predict next for")
+    ap.add_argument("--single-file", help="File with commands (one per line), run prediction for each")
     ap.add_argument("--model", default="gemma:2b", help="Ollama model name")
     ap.add_argument("--ollama-url", default="http://localhost:11434/api/generate")
     ap.add_argument("--out", default="output/ollama_topk_results.jsonl")
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
-    ap.add_argument("--context-len", type=int, default=3, help="Max previous commands to include in context")
+    ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
     ap.add_argument("--temp", type=float, default=0.15)
-    ap.add_argument("--sleep", type=float, default=0.1)
+    ap.add_argument("--sleep", type=float, default=0.05)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
-    if not os.path.exists(args.sessions):
-        raise SystemExit(f"Sessions file not found: {args.sessions}")
-
-    # load sessions
-    sessions = []
-    with open(args.sessions, "r", encoding="utf-8") as f:
-        for ln in f:
-            ln = ln.strip()
-            if not ln: continue
-            try:
-                obj = json.loads(ln)
-            except:
-                continue
-            # accept both {"session":..., "commands":[...]} or {"session_id":..., "commands":...}
-            sid = obj.get("session") or obj.get("session_id") or obj.get("id")
-            cmds = obj.get("commands") or obj.get("cmds") or obj.get("commands_list")
-            if not sid or not cmds: continue
-            sessions.append({"session": sid, "commands": cmds})
-
-    if not sessions:
-        raise SystemExit("No sessions loaded.")
-
-    random.seed(args.seed)
+    # validate modes
+    mode_sessions = bool(args.sessions)
+    mode_single = bool(args.single_cmd or args.single_file)
+    if not (mode_sessions or mode_single):
+        raise SystemExit("Provide --sessions OR --single-cmd OR --single-file")
 
     # quick ping
     try:
-        _ = query_ollama("Ping. Reply 'ok' only.", args.model, args.ollama_url, temp=0.0, timeout=30)
+        _ = query_ollama("Ping. Reply 'ok' only.", args.model, args.ollama_url, temp=0.0, timeout=10)
     except Exception as e:
-        raise SystemExit(f"Unable to contact Ollama: {e}")
+        raise SystemExit(f"Unable to contact Ollama: {e}\nStart `ollama serve` and ensure model is pulled.")
 
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    fout = open(args.out, "w", encoding="utf-8")
-
-    total_steps = 0
-    results = []
-    # iterate sessions and generate prediction tasks (sliding)
-    tasks = []
-    for sess in sessions:
-        cmds = sess["commands"]
-        # for each consecutive pair i -> i+1, construct a task
-        for i in range(len(cmds)-1):
-            ctx_start = max(0, i - (args.context_len - 1))
-            context = cmds[ctx_start:i+1]  # include current command at end
-            expected = cmds[i+1]
-            tasks.append({"session": sess["session"], "index": i, "context": context, "expected": expected})
+    tasks = []  # each task: dict with context(list) and expected (optional) and meta
+    if mode_sessions:
+        if not os.path.exists(args.sessions):
+            raise SystemExit(f"Sessions file not found: {args.sessions}")
+        sessions = []
+        with open(args.sessions, "r", encoding="utf-8") as f:
+            for ln in f:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                try:
+                    obj = json.loads(ln)
+                except:
+                    continue
+                sid = obj.get("session") or obj.get("session_id") or obj.get("id")
+                cmds = obj.get("commands") or obj.get("cmds") or obj.get("commands_list")
+                if not sid or not cmds or len(cmds) < 2:
+                    continue
+                sessions.append({"session": sid, "commands": cmds})
+        # build sliding tasks: for each i -> i+1
+        for sess in sessions:
+            cmds = sess["commands"]
+            for i in range(len(cmds) - 1):
+                # build context window ending at cmds[i]
+                start = max(0, i - (args.context_len - 1))
+                context = cmds[start:i+1]  # include cmds[i] as last context command
+                expected = cmds[i+1]
+                tasks.append({"session": sess["session"], "index": i, "context": context, "expected": expected})
+    else:
+        # single mode
+        single_cmds = []
+        if args.single_cmd:
+            single_cmds.append(args.single_cmd.strip())
+        if args.single_file:
+            if not os.path.exists(args.single_file):
+                raise SystemExit(f"Single-file not found: {args.single_file}")
+            with open(args.single_file, "r", encoding="utf-8") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if ln:
+                        single_cmds.append(ln)
+        for cmd in single_cmds:
+            tasks.append({"session": "single", "index": 0, "context": [cmd], "expected": None})
 
     if args.n and args.n > 0:
+        random.seed(args.seed)
         random.shuffle(tasks)
         tasks = tasks[:args.n]
 
-    total_steps = len(tasks)
-    print(f"Total prediction steps: {total_steps}")
+    total = len(tasks)
+    print(f"Total prediction tasks: {total}")
 
-    # metrics
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    fout = open(args.out, "w", encoding="utf-8")
+    results = []
+
     topk_hits = 0
     top1_hits = 0
     non_empty = 0
 
     for t in tqdm(tasks, desc="Predicting", unit="step"):
-        ctx = t["context"]
-        expected = t["expected"]
-        prompt = make_prompt_topk(ctx, args.k)
+        context = t["context"]
+        expected = t.get("expected")
+        # build prompt
+        if len(context) == 1:
+            prompt = make_prompt_topk_for_single(context[0], args.k)
+        else:
+            prompt = make_prompt_topk_from_context(context, args.k)
+
         try:
             raw = query_ollama(prompt, args.model, args.ollama_url, temp=args.temp, timeout=120)
             err = None
         except Exception as e:
             raw = ""
             err = str(e)
-        candidates = candidate_lines_from_response(raw, args.k)
-        # normalize expected
-        exp_key = normalize_for_compare(expected)
-        found_in_topk = False
-        for rank, cand in enumerate(candidates, start=1):
-            cand_key = normalize_for_compare(cand)
-            # compare command name equality and directory/path equality if expected has a path
-            # permissive: if expected path empty, only compare command name
-            name_match = (cand_key[0] == exp_key[0] and cand_key[0] != "")
-            if exp_key[1]:
-                # expected has path -> require same path or prefix match
-                path_match = (cand_key[1] == exp_key[1] or (cand_key[1] and exp_key[1].startswith(cand_key[1])) or (exp_key[1].startswith(cand_key[1]) if cand_key[1] else False))
-            else:
-                path_match = True  # no path in expected -> ignore path
-            if name_match and path_match:
-                found_in_topk = True
-                if rank == 1:
-                    top1_hits += 1
-                topk_hits += 1
-                break
 
-        if candidates:
+        candidates = extract_candidates_from_response(raw, args.k)
+        candidates_clean = [re.sub(r'^```|```$|`', '', c).strip() for c in candidates]
+
+        # print expected + candidates (each on its own line)
+        print("\n---")
+        print("Context (last commands):")
+        for c in context:
+            print("  " + c)
+        if expected:
+            print("Expected:", expected)
+        else:
+            print("Expected: (not provided)")
+
+        print(f"Top-{args.k} candidates:")
+        if not candidates_clean:
+            if raw:
+                print(" (no parsed lines, raw response below)\n")
+                print(raw)
+            else:
+                print(" (no response)")
+        else:
+            for i, c in enumerate(candidates_clean, start=1):
+                print(f" {i}. {c}")
+
+        # permissive comparison: check if expected normalized matches any candidate normalized
+        hit = False
+        if expected and candidates_clean:
+            exp_key = normalize_for_compare(expected)
+            for rnk, cand in enumerate(candidates_clean, start=1):
+                cand_key = normalize_for_compare(cand)
+                # require same command name, and if expected has path require path compatibility
+                name_match = (cand_key[0] == exp_key[0] and cand_key[0] != "")
+                if exp_key[1]:
+                    # expected has path -> require path exact or prefix match (permissive)
+                    path_match = (cand_key[1] == exp_key[1]
+                                  or (cand_key[1] and (exp_key[1].startswith(cand_key[1]) or cand_key[1].startswith(exp_key[1]))))
+                else:
+                    path_match = True
+                if name_match and path_match:
+                    hit = True
+                    if rnk == 1:
+                        top1_hits += 1
+                    topk_hits += 1
+                    break
+
+        if candidates_clean:
             non_empty += 1
 
         rec = {
-            "session": t["session"],
-            "index": t["index"],
-            "context": ctx,
+            "session": t.get("session"),
+            "index": t.get("index"),
+            "context": context,
             "expected_raw": expected,
-            "expected_norm": exp_key,
-            "candidates_raw": candidates,
-            "candidates_norm": [normalize_for_compare(c) for c in candidates],
-            "hit_in_topk": bool(found_in_topk),
+            "candidates_raw": candidates_clean,
+            "hit_in_topk": bool(hit),
             "error": err
         }
         fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -277,19 +341,13 @@ def main():
 
     fout.close()
 
-    total = len(results)
-    topk_rate = topk_hits / total if total else 0.0
-    top1_rate = top1_hits / total if total else 0.0
-    non_empty_rate = non_empty / total if total else 0.0
+    total_done = len(results)
+    topk_rate = topk_hits / total_done if total_done else 0.0
+    top1_rate = top1_hits / total_done if total_done else 0.0
+    non_empty_rate = non_empty / total_done if total_done else 0.0
 
-    print("\n=== SUMMARY ===")
-    print(f"Total steps: {total}")
-    print(f"Non-empty predictions: {non_empty}/{total} ({non_empty_rate*100:.2f}%)")
-    print(f"Top-{args.k} hits: {topk_hits}/{total} -> {topk_rate*100:.2f}%")
-    print(f"Top-1 hits: {top1_hits}/{total} -> {top1_rate*100:.2f}%")
-    # also save a small summary file
     summary = {
-        "total_steps": total,
+        "total_tasks": total_done,
         "non_empty": non_empty,
         "topk_hits": topk_hits,
         "top1_hits": top1_hits,
@@ -301,6 +359,14 @@ def main():
     }
     with open(args.out + ".summary.json", "w", encoding="utf-8") as s:
         json.dump(summary, s, indent=2)
+
+    print("\n=== SUMMARY ===")
+    print(f"Total tasks: {total_done}")
+    print(f"Non-empty predictions: {non_empty}/{total_done} ({non_empty_rate*100:.2f}%)")
+    print(f"Top-{args.k} hits: {topk_hits}/{total_done} -> {topk_rate*100:.2f}%")
+    print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
+    print(f"Detailed results: {args.out}")
+    print(f"Summary: {args.out}.summary.json")
 
 if __name__ == "__main__":
     main()
