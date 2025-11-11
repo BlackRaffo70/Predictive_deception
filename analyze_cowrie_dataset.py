@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Analisi del dataset Cowrie (formato aggregato con chiave 'data' per i comandi).
-Conta i comandi più usati dagli attaccanti.
+Conta i comandi più usati dagli attaccanti e salva anche la data del file analizzato,
+includendola nel nome dei file di output.
 """
 
 import json
@@ -9,9 +10,15 @@ import argparse
 from collections import defaultdict, Counter
 import statistics
 import os
+import re
 
 def analyze_cowrie_dataset(input_file: str, output_prefix: str):
     print(f"🔍 Analisi file aggregato: {input_file}")
+
+    # Estrai la data dal nome del file, es: cowrie_2020-02-29.json → 2020-02-29
+    source_name = os.path.basename(input_file)
+    match = re.search(r"(\d{4}-\d{2}-\d{2})", source_name)
+    file_date = match.group(1) if match else "unknown"
 
     # Carica il dataset
     with open(input_file, "r", encoding="utf-8") as f:
@@ -70,13 +77,23 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
 
     # Salva i risultati
     os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
-    with open(f"{output_prefix}_sessions.jsonl", "w", encoding="utf-8") as out:
+
+    # ✅ Aggiungi la data ai nomi dei file di output
+    out_sessions_path = f"{output_prefix}_sessions_{file_date}.jsonl"
+    out_stats_path = f"{output_prefix}_stats_{file_date}.json"
+
+    with open(out_sessions_path, "w", encoding="utf-8") as out:
         for sid, cmds in sessions.items():
             if cmds:
-                out.write(json.dumps({"session": sid, "commands": cmds}) + "\n")
+                out.write(json.dumps({
+                    "session": sid,
+                    "commands": cmds,
+                    "source_file": file_date
+                }) + "\n")
 
-    with open(f"{output_prefix}_stats.json", "w", encoding="utf-8") as s:
+    with open(out_stats_path, "w", encoding="utf-8") as s:
         json.dump({
+            "source_file": file_date,
             "n_sessions": n_sessions,
             "avg_len": avg_len,
             "median_len": median_len,
@@ -84,8 +101,8 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
             "top_commands": cmd_counter.most_common(50)
         }, s, indent=2)
 
-    print(f"\n💾 File salvato: {output_prefix}_sessions.jsonl")
-    print(f"📊 Statistiche salvate in: {output_prefix}_stats.json")
+    print(f"\n💾 File salvato: {out_sessions_path}")
+    print(f"📊 Statistiche salvate in: {out_stats_path}")
     print(f"✅ Totale sessioni con comandi: {len([x for x in sessions.values() if x])}")
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ Predictive_deception/
 │
 ├── analyze_cowrie_dataset.py         → Analizza dataset Cowrie e crea sessioni
 ├── build_predictive_pairs.py         → Crea coppie (context → next)
-├── evaluate_ollama.py                → Valutazione modelli locali via Ollama
+├── evaluate_ollama_topk.py                → Valutazione modelli locali via Ollama
 ├── evaluate_LLM_OpenRouter.py        → Valutazione modelli via API OpenRouter
 ├── inspect_cowrie_json.py            → Ispeziona dataset grezzo
 │
@@ -84,7 +84,7 @@ python build_predictive_pairs.py --input output/cowrie_sessions.jsonl --output o
 ```bash
 ollama pull mistral:7b-instruct-q4_0
 ollama serve &
-python evaluate_ollama.py --data output/predictive_pairs.jsonl --model mistral:7b-instruct-q4_0 --n 200 --temp 0.1
+python evaluate_ollama_topk.py --data output/predictive_pairs.jsonl --model mistral:7b-instruct-q4_0 --n 200 --temp 0.1
 ```
 4️⃣ Valutare modello via OpenRouter (API):
 
