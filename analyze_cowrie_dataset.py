@@ -5,7 +5,6 @@ Conta i comandi più usati dagli attaccanti e salva anche la data del file anali
 includendola nel nome dei file di output.
 
 python3 analyze_cowrie_dataset.py --input data/cowrie_2020-02-29.json --output output/cowrie
-
 """
 
 import json
