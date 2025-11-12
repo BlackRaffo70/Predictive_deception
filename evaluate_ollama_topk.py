@@ -13,7 +13,10 @@ Per ogni predizione richiede top-K candidate a Ollama e:
 Esempi:
   # session mode (sliding pairs)
   python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
-    --model gemma:2b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 1000
+    --model gemma:2b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
+
+    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model codellama --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
 
   # single command
   python evaluate_ollama_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" \
@@ -137,7 +140,7 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
             return r0 if isinstance(r0, str) else str(r0)
     return r.text.strip()
 
-"""
+
 # -------------------------
 # WHITELIST + Prompt builders (uses whitelist)
 # -------------------------
@@ -168,12 +171,12 @@ WHITELIST = [
     # 🗣 output / shell builtin
     "echo"
 ]
-"""
+
 
 # ============================================
 # 🧱 WHITELIST COMPLETA (aggregata da dataset Cowrie)
 # ============================================
-
+'''
 WHITELIST = [
     # 🧍‍♂️ User / System info
     "whoami", "id", "groups", "hostname", "uptime",
@@ -268,7 +271,7 @@ WHITELIST = [
     "echo \"admin qwedcxz\" > /tmp/up.txt",
     "echo \"admin support\" > /tmp/up.txt",
     "echo \"admin ubnt\" > /tmp/up.txt"
-]
+]'''
 
 def make_prompt_topk_from_context(context: list[str], k: int) -> str:
     """
