@@ -1,0 +1,4 @@
+cose da fare:
+- migliorare la funzione per la pulizia del json (eliminare i comandi spuri del tipo ^C ecc)
+- migliorare la funzione di matching delle prediction (per quanto riguarda le cartelle in WHITELISTFOLDERS il match deve basarsi sul nome della cartella e non sul singolo file, per file personali utilizzare delle etichette ecc)
+- migliorare condizioni generazione prompt

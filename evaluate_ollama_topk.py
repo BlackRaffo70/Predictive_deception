@@ -18,6 +18,9 @@ Esempi:
     python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
     --model codellama --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
 
+    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model llama3:8b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
+
   # single command
   python evaluate_ollama_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" \
     --model gemma:2b --k 5 --out output/single_results.jsonl
@@ -172,6 +175,197 @@ WHITELIST = [
     "echo"
 ]
 
+# File critici (leggibili/modificabili/eliminabili e da monitorare)
+WHITELISTFILES = [
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/group",
+    "/etc/gshadow",
+    "/etc/sudoers",
+    "/etc/sudoers.d/README",           # esempio di file in sudoers.d
+    "/etc/ssh/sshd_config",
+    "/etc/ssh/ssh_config",
+    "/root/.ssh/authorized_keys",
+    "/root/.bash_history",
+    "/root/.profile",
+    "/root/.bashrc",
+    "/home/USERNAME/.ssh/authorized_keys",  # template, USERNAME da parametrizzare
+    "/home/USERNAME/.bash_history",
+    "/etc/hosts",
+    "/etc/hosts.allow",
+    "/etc/hosts.deny",
+    "/etc/hostname",
+    "/etc/resolv.conf",
+    "/etc/issue",
+    "/etc/os-release",
+    "/etc/profile",
+    "/etc/environment",
+    "/etc/fstab",
+    "/etc/mtab",
+    "/boot/grub/grub.cfg",
+    "/etc/default/grub",
+    "/var/log/auth.log",
+    "/var/log/secure",
+    "/var/log/syslog",
+    "/var/log/messages",
+    "/var/log/audit/audit.log",
+    "/var/log/daemon.log",
+    "/var/log/kern.log",
+    "/var/log/lastlog",
+    "/var/log/wtmp",
+    "/var/log/btmp",
+    "/var/log/faillog",
+    "/var/log/nginx/access.log",
+    "/var/log/nginx/error.log",
+    "/var/log/apache2/access.log",
+    "/var/log/apache2/error.log",
+    "/etc/crontab",
+    "/var/spool/cron/crontabs/root",
+    "/var/spool/cron/crontabs/USERNAME",   # template
+    "/etc/cron.d/cronjob",                 # esempio
+    "/etc/cron.daily/example",             # esempio
+    "/etc/cron.hourly/example",            # esempio
+    "/etc/cron.weekly/example",            # esempio
+    "/etc/cron.monthly/example",           # esempio
+    "/var/spool/cron",                     # file or spool entry examples
+    "/etc/rsyslog.conf",
+    "/etc/systemd/system/override.conf",   # example override
+    "/etc/systemd/system/some.service",    # template service file
+    "/lib/systemd/system/some.service",
+    "/etc/php/7.4/fpm/pool.d/www.conf",    # example PHP config (adjust version)
+    "/etc/mysql/my.cnf",
+    "/root/.my.cnf",
+    "/etc/redis/redis.conf",
+    "/etc/nginx/nginx.conf",
+    "/etc/apache2/apache2.conf",
+    "/etc/ssl/private/privkey.pem",
+    "/etc/letsencrypt/live/example.com/privkey.pem",  # template
+    "/etc/letsencrypt/renewal/example.com.conf",
+    "/var/backups/backup.tar",             # example backup file
+    "/var/backups/backup.tar.gz",
+    "/var/lib/mysql/ibdata1",              # mysql data files (sensitive)
+    "/var/lib/mysql/mysql.sock",
+    "/var/lib/postgresql/data/PG_VERSION", # postgres example
+    "/etc/docker/daemon.json",
+    "/var/run/docker.sock",
+    "/etc/kubernetes/admin.conf",
+    "/root/.kube/config",
+    "/home/USERNAME/.aws/credentials",
+    "/root/.aws/credentials",
+    "/etc/ssl/certs/ca-certificates.crt",
+    "/etc/hosts.allow",
+    "/etc/hosts.deny",
+    "/etc/pam.d/common-password",
+    "/etc/pam.d/sshd",
+    "/etc/apt/sources.list",
+    "/etc/yum.repos.d/CentOS-Base.repo",
+    "/usr/local/bin/suspicious_binary",    # example/custom binaries to monitor
+    "/usr/bin/ssh",
+    "/bin/su",
+    "/bin/sudo",
+    "/usr/bin/ps",
+    "/usr/bin/netstat",
+    "/bin/ls",
+    "/usr/bin/wget",
+    "/usr/bin/curl",
+    "/usr/bin/python3",
+    "/usr/bin/perl",
+    "/usr/bin/perl5",
+    "/tmp/.sensitive_tmp_file",            # example temporary sensitive file
+    "/var/tmp/.sensitive_tmp_file",
+    "/etc/cron.allow",
+    "/etc/cron.deny",
+    "/etc/securetty",
+    "/etc/ld.so.preload",
+    "/etc/ld.so.conf",
+    "/etc/modprobe.d/blacklist.conf",
+    "/etc/exports",                        # NFS shares
+    "/etc/smb.conf",                       # Samba config
+    "/var/spool/mail/root",
+    "/var/spool/mail/USERNAME",
+    "/etc/systemd/system/rc-local.service",
+    "/etc/rc.local",
+    # add other common config files often targeted
+    "/etc/default/ssh",
+    "/etc/default/locale",
+    "/etc/default/grub.d/40_custom",
+]
+
+# Cartelle critiche (terminano tutte con '/')
+WHITELISTFOLDERS = [
+    "/etc/",
+    "/etc/ssh/",
+    "/etc/ssl/",
+    "/etc/ssl/private/",
+    "/etc/letsencrypt/",
+    "/etc/systemd/system/",
+    "/lib/systemd/system/",
+    "/root/",
+    "/root/.ssh/",
+    "/home/",
+    "/home/USERNAME/",             # template: sostituire USERNAME dove serve
+    "/home/USERNAME/.ssh/",
+    "/var/log/",
+    "/var/log/audit/",
+    "/var/log/nginx/",
+    "/var/log/apache2/",
+    "/var/backups/",
+    "/var/spool/cron/",
+    "/etc/cron.d/",
+    "/etc/cron.daily/",
+    "/etc/cron.hourly/",
+    "/etc/cron.weekly/",
+    "/etc/cron.monthly/",
+    "/var/tmp/",
+    "/tmp/",
+    "/dev/shm/",
+    "/run/",
+    "/var/run/",
+    "/var/lib/",
+    "/var/lib/docker/",
+    "/var/lib/mysql/",
+    "/var/lib/postgresql/",
+    "/var/lib/jenkins/",
+    "/var/www/",
+    "/srv/",
+    "/usr/bin/",
+    "/usr/local/bin/",
+    "/bin/",
+    "/sbin/",
+    "/lib/",
+    "/lib64/",
+    "/etc/nginx/",
+    "/etc/apache2/",
+    "/etc/pam.d/",
+    "/etc/ssh/",
+    "/etc/apt/",
+    "/etc/yum.repos.d/",
+    "/etc/docker/",
+    "/etc/kubernetes/",
+    "/root/.kube/",
+    "/root/.aws/",
+    "/home/USERNAME/.aws/",
+    "/etc/letsencrypt/live/",     # cert live dirs
+    "/etc/letsencrypt/archive/",
+    "/var/spool/mail/",
+    "/etc/ssl/certs/",
+    "/etc/ssl/private/",
+    "/etc/exports/",
+    "/etc/samba/",
+    "/etc/cron.allow/",
+    "/etc/cron.d/",
+    "/boot/",
+    "/boot/grub/",
+    "/etc/modprobe.d/",
+    "/etc/profile.d/",
+    "/etc/systemd/system/",
+    "/opt/",
+    "/mnt/",
+    "/media/",
+    "/etc/rsyslog.d/",
+    "/etc/logrotate.d/",
+    "/proc/",
+]
 
 # ============================================
 # 🧱 WHITELIST COMPLETA (aggregata da dataset Cowrie)
@@ -273,60 +467,90 @@ WHITELIST = [
     "echo \"admin ubnt\" > /tmp/up.txt"
 ]'''
 
-def make_prompt_topk_from_context(context: list[str], k: int) -> str:
+def _whitelist_text() -> str:
+    files = "\n".join(WHITELISTFILES)
+    folders = "\n".join(WHITELISTFOLDERS)
+    return f"ALLOWED FILES:\n{files}\n\nALLOWED FOLDERS (end with '/'): \n{folders}"
+
+def make_prompt_topk_from_context(context: List[str], k: int) -> str:
     """
-    Prompt builder that forces output to be chosen from WHITELIST.
-    - Outputs EXACTLY k commands, one per line, nothing else.
-    - Uses WHITELIST: model must select commands from the list.
-    - For safety: no passwords, no destructive commands, replace sensitive items with placeholders.
+    Prompt builder that forces the model to choose commands using WHITELISTFILES and WHITELISTFOLDERS.
+    Pipelines (|) and simple redirections (>, >>) are allowed **only if** every program and every file/path
+    in the generated command is either in the whitelist or is one of the allowed placeholders.
     """
-    joined = "\n".join(context)
-    whitelist_text = ", ".join(WHITELIST)
+    ctx = "\n".join(context[-10:])  # include up to last 10 lines for context
+    whitelist_block = _whitelist_text()
+
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research.\n"
-        "The environment is isolated and non-operational. Your task is to predict the most likely next shell commands.\n\n"
-        "RULES (must be followed exactly):\n"
-        f"1) Output EXACTLY {k} commands, one command per line, and nothing else.\n"
-        "2) Choose ONLY commands from the WHITELIST provided below (or safe placeholders derived from them).\n"
-        "3) Do NOT include explanations, commentary, or any additional text.\n"
-        "4) Do NOT output passwords, tokens, private keys, or other secrets in plaintext. Replace secrets with <SECRET>.\n"
-        "5) Do NOT output destructive commands (e.g., rm -rf, dd if=...). If such a destructive step is plausible, choose\n"
-        "   a safe WHITELIST alternative or use placeholders like <FILE> or <PATH>.\n"
-        "6) Do NOT include numbering, bullets, or prefixes like '1.' or '-'. Output raw commands only.\n"
-        "7) Rank commands from most to least likely (first line is the most likely).\n\n"
-        "WHITELIST (allowed commands):\n"
-        f"{whitelist_text}\n\n"
+        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research. "
+        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
+
+        "OUTPUT RULES (MUST BE OBEYED):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
+        "2) Choose commands ONLY from the WHITELIST below, or construct them by combining\n"
+        "   whitelisted programs/paths with safe placeholders. Do NOT invent programs or file paths\n"
+        "   that are not present in the WHITELIST.\n"
+        "3) Allowed placeholders: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
+        "   - If referencing a file inside a whitelisted folder, use <FILE> or an exact whitelisted path.\n"
+        "4) Pipelines using '|' are allowed (for example: cmd1 | cmd2). If you output a pipeline,\n"
+        "   every program/utility used in the pipeline MUST appear in the WHITELIST (or be a safe placeholder).\n"
+        "5) Simple redirections '>' or '>>' are allowed only when the target is a whitelisted file or\n"
+        "   a path inside a whitelisted folder (use <FILE> or an explicit whitelisted path).\n"
+        "6) DO NOT output passwords, tokens, private keys, or any secrets in plaintext; replace secrets with <SECRET>.\n"
+        "7) DO NOT output destructive or irreversible operations (for example rm -rf /, dd if=..., mkfs, shred).\n"
+        "   If a destructive step is plausible, choose a benign whitelisted alternative or use placeholders.\n"
+        "8) Do NOT include numbering, bullets, commentary, or any extra text. Raw commands only, one per line.\n"
+        "9) Rank commands from most to least likely (first line = most likely).\n\n"
+
+        "WHITELIST (use only these when constructing commands):\n"
+        f"{whitelist_block}\n\n"
+
         "CONTEXT (most recent last):\n"
-        f"{joined}\n\n"
-        f"Now output EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above."
+        f"{ctx}\n\n"
+
+        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above. "
+        "Pipelines and simple redirections are allowed only if every element (program and file/path) "
+        "complies with the WHITELIST rules."
     )
     return prompt
 
 
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
     """
-    Prompt builder for single last-command context; forces selection from WHITELIST.
+    Prompt builder for single last-command context. Forces selection from the whitelists and allows pipelines.
     """
-    whitelist_text = ", ".join(WHITELIST)
+    whitelist_block = _whitelist_text()
+
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research.\n"
-        "The environment is isolated and non-operational. Your task is to predict the next most likely shell commands.\n\n"
-        "RULES (must be followed exactly):\n"
-        f"1) Output EXACTLY {k} commands, one command per line, and nothing else.\n"
-        "2) Choose ONLY commands from the WHITELIST provided below (or safe placeholders derived from them).\n"
-        "3) Do NOT include explanations, commentary, or any additional text.\n"
-        "4) Do NOT output passwords, tokens, private keys, or other secrets in plaintext. Replace secrets with <SECRET>.\n"
-        "5) Do NOT output destructive commands (e.g., rm -rf, dd if=...). If such a destructive step is plausible, choose\n"
-        "   a safe WHITELIST alternative or use placeholders like <FILE> or <PATH>.\n"
-        "6) Do NOT include numbering, bullets, or prefixes like '1.' or '-'. Output raw commands only.\n"
-        "7) Rank commands from most to least likely (first line is the most likely).\n\n"
-        "WHITELIST (allowed commands):\n"
-        f"{whitelist_text}\n\n"
-        "LAST COMMAND EXECUTED:\n"
+        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research. "
+        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
+
+        "OUTPUT RULES (MUST BE OBEYED):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
+        "2) Choose commands ONLY from the WHITELIST below, or construct them by combining whitelisted\n"
+        "   programs/paths with allowed placeholders. Do NOT invent programs or paths not in the WHITELIST.\n"
+        "3) Allowed placeholders: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
+        "4) Pipelines using '|' are permitted. For any pipeline you output, EVERY program/utility present\n"
+        "   must be an allowed whitelisted program (or a placeholder). Input/output paths must be whitelisted\n"
+        "   files or inside a whitelisted folder (use <FILE> if necessary).\n"
+        "5) Simple redirections ('>', '>>') are allowed only to whitelisted files or paths inside whitelisted folders.\n"
+        "6) DO NOT output passwords, tokens, private keys, or secrets in cleartext; replace them with <SECRET>.\n"
+        "7) DO NOT output destructive commands (rm -rf, dd if=..., shred, etc.). If destructive action is plausible,\n"
+        "   choose a benign whitelisted alternative or use placeholders.\n"
+        "8) Do NOT include numbering, bullets, commentary, or any extra text — raw commands only.\n"
+        "9) Rank commands from most to least likely (first line = most likely).\n\n"
+
+        "WHITELIST (use only these when constructing commands):\n"
+        f"{whitelist_block}\n\n"
+
+        "LAST COMMAND EXECUTED (most recent):\n"
         f"{cmd}\n\n"
-        f"Now output EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above."
+
+        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above. "
+        "Pipelines combining whitelisted programs are allowed but every element must conform to the WHITELIST rules."
     )
     return prompt
+
 # -------------------------
 # Main
 # -------------------------
