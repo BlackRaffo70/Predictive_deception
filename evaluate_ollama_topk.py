@@ -75,7 +75,7 @@ def clean_llm_response(resp: str, k: int) -> List[str]:
         ln = re.sub(r"^[\-\*\•]\s*", "", ln)          # - cmd
 
         # 3) elimina frasi non comando
-        if ln.lower().startswith(("sorry", "i cannot", "i can’t", "i am unable",
+        if ln.lower().startswith(("sorry", "i cannot", "i can’t","based", "the next", "i am unable",
                                   "i'm unable", "this is", "as an ai")):
             continue
 
@@ -479,12 +479,11 @@ def make_prompt_topk_from_context(context: List[str], k: int) -> str:
 
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) Choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-        "3) Allowed placeholders are ONLY those written between angle brackets: <LIKE_THIS>.\n"
-        "4) Commands can be constructed using pipelines (linux command '|') \n"
-        "5) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "6) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
-        "7) Rank commands from most to least likely (first line = most likely).\n\n"
+        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
+        "3) Commands can be constructed using pipelines (linux command '|') \n"
+        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "6) Rank commands from most to least likely (first line = most likely).\n\n"
 
         "WHITELIST (containing commands):\n"
         f"{_whitelist_commands}\n\n"
@@ -511,12 +510,11 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
 
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) Choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-        "3) Allowed placeholders are ONLY those written between angle brackets: <LIKE_THIS>.\n"
-        "4) Commands can be constructed using pipelines (linux command '|') \n"
-        "5) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "6) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
-        "7) Rank commands from most to least likely (first line = most likely).\n\n"
+        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
+        "3) Commands can be constructed using pipelines (linux command '|') \n"
+        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "6) Rank commands from most to least likely (first line = most likely).\n\n"
 
         "WHITELIST (containing commands):\n"
         f"{_whitelist_commands}\n\n"
