@@ -42,6 +42,54 @@ PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")    # path-like
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")  # qualunque <...>
 CODE_FENCE_RE = re.compile(r'```(?:bash|sh)?\s*(.*?)\s*```', re.S | re.I)
 
+def clean_llm_response(resp: str, k: int) -> List[str]:
+    """
+    Estrae SOLO i comandi generati dall'LLM.
+    - Rimuove testo descrittivo
+    - Rimuove numerazione / bullet
+    - Supporta code fences
+    - Supporta pipeline e redirections
+    - Restituisce max k righe interpretabili come comandi
+    """
+
+    if not resp:
+        return []
+
+    out = resp.strip()
+
+    # 1) estrai contenuto dentro eventuale code block
+    m = re.search(r"```(?:bash|sh)?\s*(.*?)\s*```", out, flags=re.S)
+    if m:
+        out = m.group(1).strip()
+
+    lines = out.splitlines()
+    cleaned = []
+
+    for ln in lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+
+        # 2) rimuovi numerazione e bullet
+        ln = re.sub(r"^\d+[\.\)\-]\s*", "", ln)       # 1. cmd
+        ln = re.sub(r"^[\-\*\•]\s*", "", ln)          # - cmd
+
+        # 3) elimina frasi non comando
+        if ln.lower().startswith(("sorry", "i cannot", "i can’t", "i am unable",
+                                  "i'm unable", "this is", "as an ai")):
+            continue
+
+        # 4) tieni solo linee plausibili come comandi
+        if not re.match(r"[a-zA-Z0-9./<]", ln):
+            continue  # scarta righe che non iniziano come comandi
+
+        cleaned.append(ln)
+
+        if len(cleaned) >= k:
+            break
+
+    return cleaned
+
 def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
     """
     Normalizzazione estesa con gestione del pipelining.
@@ -103,58 +151,6 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
         results.append((name, path))
 
     return results
-
-
-def extract_candidates_from_response(resp_text: str, k: int) -> List[str]:
-    """
-    Estrae fino a k candidate:
-    - preferisce code fence block
-    - poi prime k righe non vuote
-    - poi split per comma/semicolon
-    """
-    if not resp_text:
-        return []
-    m = CODE_FENCE_RE.search(resp_text)
-    if m:
-        block = m.group(1).strip()
-        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        if lines:
-            return lines[:k]
-    # lines
-    lines = [ln.strip() for ln in resp_text.splitlines() if ln.strip()]
-    if len(lines) >= k:
-        return lines[:k]
-    # cleaned numbered lines
-    cleaned = []
-    for ln in lines:
-        ln2 = re.sub(r'^\s*\d+[\)\.\-]?\s*', '', ln).strip()
-        if ln2:
-            cleaned.append(ln2)
-    if len(cleaned) >= k:
-        return cleaned[:k]
-    # fallback split by punctuation
-    parts = [p.strip() for p in re.split(r'[,\;]\s*', resp_text) if p.strip()]
-    out = cleaned + parts
-    # deduplicate preserve order
-    seen = set()
-    final = []
-    for c in out:
-        if c not in seen:
-            seen.add(c)
-            final.append(c)
-        if len(final) >= k:
-            break
-    if final:
-        return final[:k]
-    # ultimate fallback: take first non-empty tokens by newline
-    out2 = []
-    for ln in resp_text.splitlines():
-        ln = ln.strip()
-        if ln:
-            out2.append(ln)
-        if len(out2) >= k:
-            break
-    return out2[:k]
 
 # -------------------------
 # Ollama caller
@@ -538,6 +534,8 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
     )
     return prompt
 
+
+
 # -------------------------
 # Main
 # -------------------------
@@ -645,7 +643,7 @@ def main():
             raw = ""
             err = str(e)
 
-        candidates = extract_candidates_from_response(raw, args.k)
+        candidates = clean_llm_response(raw, args.k)
         candidates_clean = [re.sub(r'^```|```$|`', '', c).strip() for c in candidates]
 
         # print expected + candidates (each on its own line)
