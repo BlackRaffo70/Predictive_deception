@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-import json, argparse, os, re
+import argparse
+import os
 from glob import glob
-from collections import defaultdict, Counter
+import subprocess
+import re
+import json
 import statistics
-from analyze_and_clean import normalize_command, filter_short_sessions
 
 def merge_all(input_dir: str, output_prefix: str):
     os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
@@ -12,96 +14,106 @@ def merge_all(input_dir: str, output_prefix: str):
     if not files:
         print("❌ Nessun file JSON trovato.")
         return
+
     print(f"Trovati {len(files)} file Cowrie.\n")
 
-    raw_sessions = defaultdict(list)
-    raw_event_counter = Counter()
-    clean_sessions = defaultdict(list)
-    clean_event_counter = Counter()
+    raw_outputs = []
+    clean_outputs = []
+    aggregated_events = {}
 
+    # 1️⃣ esegui analyze_and_clean.py per ogni file
     for path in files:
-        print(f"📄 Processando: {path}")
         basename = os.path.basename(path)
         match = re.search(r"(\d{4}-\d{2}-\d{2})", basename)
         date = match.group(1) if match else "unknown"
 
-        with open(path, "r", encoding="utf-8") as f:
+        out_prefix = f"{output_prefix}_{date}"
+
+        print(f"▶️ Elaborazione: {basename}")
+
+        cmd = [
+            "python3",
+            "analyze_and_clean.py",
+            "--input", path,
+            "--output", out_prefix
+        ]
+
+        subprocess.run(cmd, check=True)
+
+        raw_path = f"{out_prefix}_sessions_{date}_RAW.jsonl"
+        clean_path = f"{out_prefix}_sessions_{date}_CLEAN.jsonl"
+        stats_path = f"{out_prefix}_stats_{date}_RAW.json"
+
+        raw_outputs.append(raw_path)
+        clean_outputs.append(clean_path)
+
+        # aggiunge EVENT_TYPES alle stats globali
+        if os.path.exists(stats_path):
             try:
-                data = json.load(f)
-            except Exception as e:
-                print(f"⚠️ Errore nel file {path}: {e}")
-                continue
+                with open(stats_path, "r", encoding="utf-8") as s:
+                    st = json.load(s)
+                    events = st.get("event_types", {})
+                    for k, v in events.items():
+                        aggregated_events[k] = aggregated_events.get(k, 0) + v
+            except:
+                pass
 
-        for session_obj in data:
-            for sid, events in session_obj.items():
-                merged_sid = f"{date}_{sid}"
-                for ev in events:
-                    eventid = ev.get("eventid")
-                    raw_event_counter[eventid] += 1
-                    clean_event_counter[eventid] += 1
+    print("\n🧩 Tutti i file elaborati. Inizio merge finale...\n")
 
-                    if eventid != "cowrie.command.input":
-                        continue
+    # 2️⃣ MERGE RAW
+    merged_raw_path = f"{output_prefix}_ALL_RAW.jsonl"
+    with open(merged_raw_path, "w", encoding="utf-8") as out:
+        for fp in raw_outputs:
+            if os.path.exists(fp):
+                with open(fp, "r", encoding="utf-8") as f:
+                    out.write(f.read())
 
-                    raw_cmd = (
-                        ev.get("data")
-                        or ev.get("input")
-                        or ev.get("command")
-                        or ev.get("payload")
-                        or ev.get("message")
-                    )
-                    if not raw_cmd or not isinstance(raw_cmd, str):
-                        continue
+    # 3️⃣ MERGE CLEAN
+    merged_clean_path = f"{output_prefix}_ALL_CLEAN.jsonl"
+    with open(merged_clean_path, "w", encoding="utf-8") as out:
+        for fp in clean_outputs:
+            if os.path.exists(fp):
+                with open(fp, "r", encoding="utf-8") as f:
+                    out.write(f.read())
 
-                    raw_sessions[merged_sid].append(raw_cmd.strip())
-                    cleaned = normalize_command(raw_cmd)
-                    if cleaned:
-                        clean_sessions[merged_sid].append(cleaned)
+    # 4️⃣ Calcolo statistiche aggregate
+    raw_lengths = []
+    with open(merged_raw_path, "r", encoding="utf-8") as f:
+        for line in f:
+            obj = json.loads(line)
+            raw_lengths.append(len(obj.get("commands", [])))
 
-    # --- RAW ---
-    raw_sessions_path = f"{output_prefix}_merged_sessions_RAW.jsonl"
-    raw_stats_path = f"{output_prefix}_merged_stats_RAW.json"
-    with open(raw_sessions_path, "w", encoding="utf-8") as out:
-        for sid, cmds in raw_sessions.items():
-            out.write(json.dumps({"session": sid, "commands": cmds}) + "\n")
-    raw_lengths = [len(v) for v in raw_sessions.values() if v]
-    raw_stats = {
-        "source_files": files,
-        "total_files": len(files),
-        "n_sessions": len(raw_sessions),
-        "avg_len": statistics.mean(raw_lengths) if raw_lengths else 0,
-        "median_len": statistics.median(raw_lengths) if raw_lengths else 0,
-        "event_types": dict(raw_event_counter)
-    }
-    with open(raw_stats_path, "w", encoding="utf-8") as s:
-        json.dump(raw_stats, s, indent=2)
-    print(f"💾 RAW merge salvato: {raw_sessions_path}")
-
-    # --- CLEAN ---
-    clean_sessions_path = f"{output_prefix}_merged_sessions_CLEAN.jsonl"
-    clean_stats_path = f"{output_prefix}_merged_stats_CLEAN.json"
-    with open(clean_sessions_path, "w", encoding="utf-8") as out:
-        for sid, cmds in clean_sessions.items():
-            out.write(json.dumps({"session": sid, "commands": cmds}) + "\n")
-    filter_short_sessions(clean_sessions_path, min_length=5)
     clean_lengths = []
-    with open(clean_sessions_path, "r", encoding="utf-8") as f:
+    with open(merged_clean_path, "r", encoding="utf-8") as f:
         for line in f:
             obj = json.loads(line)
             clean_lengths.append(len(obj.get("commands", [])))
-    clean_stats = {
-        "source_files": files,
-        "total_files": len(files),
-        "n_sessions": len(clean_lengths),
-        "avg_len": statistics.mean(clean_lengths) if clean_lengths else 0,
-        "median_len": statistics.median(clean_lengths) if clean_lengths else 0,
-        "event_types": dict(clean_event_counter)
-    }
-    with open(clean_stats_path, "w", encoding="utf-8") as s:
-        json.dump(clean_stats, s, indent=2)
-    print(f"💾 CLEAN merge salvato: {clean_sessions_path}")
 
-    print("\n✅ Merge completato con successo.")
+    aggregated_stats = {
+        "total_source_files": len(files),
+        "total_sessions_raw": len(raw_lengths),
+        "total_sessions_clean": len(clean_lengths),
+        "avg_session_length_raw": statistics.mean(raw_lengths) if raw_lengths else 0,
+        "median_session_length_raw": statistics.median(raw_lengths) if raw_lengths else 0,
+        "avg_session_length_clean": statistics.mean(clean_lengths) if clean_lengths else 0,
+        "median_session_length_clean": statistics.median(clean_lengths) if clean_lengths else 0,
+        "event_types": aggregated_events
+    }
+
+    stats_final_path = f"{output_prefix}_ALL_STATS.json"
+    with open(stats_final_path, "w", encoding="utf-8") as s:
+        json.dump(aggregated_stats, s, indent=2)
+
+    # 5️⃣ Eliminazione file intermedi
+    print("\n🧹 Eliminazione dei file intermedi...")
+    for fp in raw_outputs + clean_outputs:
+        if os.path.exists(fp):
+            os.remove(fp)
+
+    print("\n🎉 Merge completato con successo!")
+    print(f"📦 RAW finale:   {merged_raw_path}")
+    print(f"📦 CLEAN finale: {merged_clean_path}")
+    print(f"📊 STATS finali: {stats_final_path}")
 
 
 if __name__ == "__main__":
@@ -110,3 +122,5 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="output/cowrie")
     args = parser.parse_args()
     merge_all(args.input_dir, args.output)
+
+" python3 merge_cowrie_datasets.py"

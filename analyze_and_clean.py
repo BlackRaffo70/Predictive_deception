@@ -89,6 +89,10 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
     with open(out_sessions_raw, "w", encoding="utf-8") as out:
         for sid, cmds in sessions.items():
             out.write(json.dumps({"session": sid, "commands": cmds, "source_file": file_date}) + "\n")
+
+    # 🔥 FILTRAGGIO RAW Aggiunto qui
+    filter_short_sessions(out_sessions_raw, min_length=5)
+
     with open(out_stats_raw, "w", encoding="utf-8") as s:
         json.dump({
             "source_file": file_date,
@@ -107,7 +111,9 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
             cleaned = [normalize_command(c) for c in cmds]
             if cleaned:
                 out.write(json.dumps({"session": sid, "commands": cleaned, "source_file": file_date}) + "\n")
+
     filter_short_sessions(out_sessions_clean, min_length=5)
+
     with open(out_stats_clean, "w", encoding="utf-8") as s:
         json.dump({
             "source_file": file_date,
@@ -125,3 +131,5 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="output/cowrie")
     args = parser.parse_args()
     analyze_cowrie_dataset(args.input, args.output)
+
+    "python3 analyze_and_clean.py --input data/cowrie_2020-02-02.json --output output/cowrie"
