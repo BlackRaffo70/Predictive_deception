@@ -76,7 +76,7 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
         seg_clean = re.split(r"\s*>\s*|\s*2>\s*|\s*>>\s*", seg_clean)[0].strip()
 
         # 6) Estrae nome comando
-        m = CMD_NAME_RE.match(seg_clean)
+        m = CMD_NAME_RE.search(seg_clean.lstrip())
         name = m.group(0).lower() if m else ""
 
         # 7) Estrae path-like (primo)
@@ -402,35 +402,40 @@ def _whitelist_folders() -> str:
 def make_prompt_topk_from_context(context: List[str], k: int) -> str:
     ctx = "\n".join(context[-10:])
 
-    prompt = (
-        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
-        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
-        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
+    prompt = f"""
+You are a system executing an attacker simulation inside a honeypot. 
+YOU MUST OBEY THE RULES STRICTLY. NO EXPLANATIONS. NO TEXT. NO COMMENTS.
 
-        "OUTPUT RULES (MUST BE OBEYED):\n"
-        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-        "3) Commands can be constructed using pipelines (linux command '|') \n"
-        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
-        "6) Rank commands from most to least likely (first line = most likely).\n\n"
+TASK:
+Predict the next {k} most likely Linux commands.
 
-        "WHITELIST (containing commands):\n"
-        f"{_whitelist_commands}\n\n"
+STRICT OUTPUT RULES:
+1) Output EXACTLY {k} commands, one per line. NO EXTRA TEXT.
+2) Allowed commands = ONLY from WHITELIST below.
+3) Allowed files = ONLY from WHITELISTFILES and WHITELISTFOLDERS below.
+4) You MUST choose commands EXACTLY as attackers in real SSH honeypots.
+5) Commands MUST be similar in style to the recent context.
+6) YOU ARE FORBIDDEN to output commands not in whitelist.
 
-        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
-        f"{_whitelist_files}\n\n"
+WHITELIST COMMANDS:
+{_whitelist_commands()}
 
-        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
-        f"{_whitelist_folders}\n\n"
+WHITELIST FILES:
+{_whitelist_files()}
 
-        "CONTEXT (most recent last):\n"
-        f"{ctx}\n\n"
+WHITELIST FOLDERS:
+{_whitelist_folders()}
 
-        f"Now OUTPUT EXACTLY {k} candidate next commands"
-    )
+CONTEXT:
+{ctx}
+
+If ANY output line is NOT in WHITELIST:  
+→ You MUST replace it with a RANDOM ITEM FROM THE WHITELIST.
+
+NOW OUTPUT EXACTLY {k} RAW COMMANDS:
+""".strip()
+
     return prompt
-
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
 
     prompt = (
