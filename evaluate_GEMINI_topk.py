@@ -667,10 +667,5 @@ if __name__ == "__main__":
     main()
 
     "export=CHIAVE API"
-<<<<<<< HEAD
-    " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
-=======
-    "source .venv/bin/activate"
     "pip install --upgrade google-genai"
-    " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"    
->>>>>>> 4c9e0e0 (Modifiche Gemini)
+    " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
