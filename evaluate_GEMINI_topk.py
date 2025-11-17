@@ -682,4 +682,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-    " python evaluate_gemini_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
+    "export=CHIAVE API"
+    " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
