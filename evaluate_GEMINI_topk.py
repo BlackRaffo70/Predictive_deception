@@ -10,23 +10,7 @@ Per ogni predizione richiede top-K candidate a Ollama e:
  - confronta permissivamente solo command name + path (ignora flag)
  - salva risultati in JSONL e summary.json
 
-Esempi:
-  # session mode (sliding pairs)
-  python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
-    --model gemma:2b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
 
-    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
-    --model codellama --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
-
-    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
-    --model llama3:8b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
-
-  # single command
-  python evaluate_ollama_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" \
-    --model gemma:2b --k 5 --out output/single_results.jsonl
-
-Requisiti:
-  pip install requests tqdm
 """
 from __future__ import annotations
 import argparse, json, os, re, time, random
@@ -683,4 +667,10 @@ if __name__ == "__main__":
     main()
 
     "export=CHIAVE API"
+<<<<<<< HEAD
     " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
+=======
+    "source .venv/bin/activate"
+    "pip install --upgrade google-genai"
+    " python evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"    
+>>>>>>> 4c9e0e0 (Modifiche Gemini)
