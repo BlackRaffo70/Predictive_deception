@@ -54,3 +54,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     convert_sessions(sys.argv[1], sys.argv[2])
+
+    "python convert_sessions_to_finetune.py output/cowrie_ALL_CLEAN.jsonl output/cowrie_finetune.jsonl"
