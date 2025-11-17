@@ -1,121 +1,73 @@
 #!/usr/bin/env python3
 """
-evaluate_gemini_topk.py — versione adattata per Google Gemini API
+evaluate_GEMINI_topk.py (updated)
 
-Funziona in due modalità:
- - sessioni (--sessions)
- - singolo comando (--single-cmd, --single-file)
+Modalità:
+ - sessioni: valuta su file JSONL con sessioni (sliding window di predizioni)
+ - single: prende un singolo comando (--single-cmd) o file di comandi (--single-file)
+Per ogni predizione richiede top-K candidate a Ollama e:
+ - stampa Expected (se disponibile) e poi i K candidate uno per riga
+ - confronta permissivamente solo command name + path (ignora flag)
+ - salva risultati in JSONL e summary.json
 
-Usa il modello Gemini tramite:
-    pip install google-genai
+Esempi:
+  # session mode (sliding pairs)
+  python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model gemma:2b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
 
-Ricorda di esportare:
-    export GOOGLE_API_KEY="LA_TUA_KEY"
+    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model codellama --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
+
+    python evaluate_ollama_topk.py --sessions output/cowrie_sessions_2020-02-29.jsonl \
+    --model llama3:8b --k 5 --context-len 3 --out output/ollama_topk_results.jsonl --n 10
+
+  # single command
+  python evaluate_ollama_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" \
+    --model gemma:2b --k 5 --out output/single_results.jsonl
+
+Requisiti:
+  pip install requests tqdm
 """
-
 from __future__ import annotations
 import argparse, json, os, re, time, random
 from typing import List, Tuple
 from tqdm import tqdm
+import requests
 
 
 # -------------------------
-# Google Gemini API (nuova sintassi 2025)
+# Utils: normalization & parsing
 # -------------------------
-from google.genai import Client
-
-if not os.getenv("GOOGLE_API_KEY"):
-    raise RuntimeError("ERROR: manca GOOGLE_API_KEY. Usa: export GOOGLE_API_KEY=xxxxx")
-
-client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
-
-def query_gemini(prompt: str, temp: float = 0.2) -> str:
-    """
-    Invia prompt a Gemini usando la nuova API:
-    client.models.generate(...)
-    """
-    try:
-        response = client.models.generate(
-            model="gemini-1.5-flash",
-            input=prompt,
-            config={
-                "temperature": temp
-            }
-        )
-
-        # estrai testo dalla risposta
-        if hasattr(response, "text"):
-            return response.text.strip()
-
-        if hasattr(response, "output_text"):
-            return response.output_text.strip()
-
-        return str(response)
-
-    except Exception as e:
-        return f"[GEMINI ERROR] {e}"
-
-# -------------------------
-# Regex helpers
-# -------------------------
-CMD_NAME_RE = re.compile(r"[a-zA-Z0-9._/\-]+")
-PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")
-PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+CMD_NAME_RE = re.compile(r"[a-zA-Z0-9._/\-]+")     # nome comando
+PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")    # path-like
+PLACEHOLDER_RE = re.compile(r"<[^>]+>")  # qualunque <...>
 CODE_FENCE_RE = re.compile(r'```(?:bash|sh)?\s*(.*?)\s*```', re.S | re.I)
 
-# -------------------------------------------------------------------
-# CLEAN LLM OUTPUT (USANDO SOLO LE LINEE CHE SONO COMANDI VALIDi)
-# -------------------------------------------------------------------
-def clean_llm_response(resp: str, k: int) -> List[str]:
-    if not resp:
-        return []
-
-    out = resp.strip()
-
-    # estrai da code fence se presente
-    m = CODE_FENCE_RE.search(out)
-    if m:
-        out = m.group(1).strip()
-
-    lines = out.splitlines()
-    cleaned = []
-
-    for ln in lines:
-        ln = ln.strip()
-        if not ln:
-            continue
-
-        # rimuovi numerazione e bullet
-        ln = re.sub(r"^\d+[\.\)\-]\s*", "", ln)
-        ln = re.sub(r"^[\-\*\•]\s*", "", ln)
-
-        # ignora testo non-comando
-        if ln.lower().startswith(("sorry", "i cannot", "i can’t","based", "the next", "i am unable",
-                                  "i'm unable", "this is", "as an ai")):
-            continue
-
-        # deve sembrare un comando
-        if not re.match(r"[a-zA-Z0-9./<]", ln):
-            continue
-
-        cleaned.append(ln)
-
-        if len(cleaned) >= k:
-            break
-
-    return cleaned
-
-# -------------------------------------------------------------------
-# NORMALIZZAZIONE CON PIPELINE SUPPORT
-# -------------------------------------------------------------------
 def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
+    """
+    Normalizzazione estesa con gestione del pipelining.
+    Ritorna una lista di tuple (name, path), una per ogni comando nella pipeline.
+
+    Ad es.:
+    "dmidecode | grep <STRING> | head -n <NUMBER>"
+
+    → [
+        ("dmidecode", ""),
+        ("grep", ""),
+        ("head", "")
+      ]
+    """
+
     if not cmd:
         return []
 
     s = cmd.strip()
+
+    # 1) Rimuove code fences/backticks
     s = re.sub(r'^```(?:bash|sh)?|```$', '', s, flags=re.I).strip()
     s = s.replace('`', '')
 
+    # 2) Rimuove intro ("next command is", etc.)
     s = re.sub(
         r'^(the next command( is|:)?|il prossimo comando( è|:)?|next command( is|:)?|predicted command( is|:)?)[\s:,-]*',
         '',
@@ -123,7 +75,9 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
         flags=re.I
     ).strip()
 
+    # 3) Divide tutta la pipeline
     segments = re.split(r"\s*\|\s*", s)
+
     results = []
 
     for seg in segments:
@@ -131,12 +85,17 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
         if not seg:
             continue
 
+        # 4) Rimuove placeholder <...>
         seg_clean = PLACEHOLDER_RE.sub("", seg).strip()
+
+        # 5) Rimuove redirection (> , 2> , >>) dalla singola pipeline
         seg_clean = re.split(r"\s*>\s*|\s*2>\s*|\s*>>\s*", seg_clean)[0].strip()
 
+        # 6) Estrae nome comando
         m = CMD_NAME_RE.match(seg_clean)
         name = m.group(0).lower() if m else ""
 
+        # 7) Estrae path-like (primo)
         path = ""
         pm = PATH_RE.search(seg_clean)
         if pm:
@@ -146,33 +105,27 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
 
     return results
 
-# -------------------------------------------------------------------
-# GEMINI CALL
-# -------------------------------------------------------------------
-def query_gemini(prompt: str, temp: float = 0.2) -> str:
-    """Invia prompt a Google Gemini e restituisce il testo puro usando la nuova API."""
+# -------------------------
+# Gemini caller
+# -------------------------
+from google.genai import Client
+import os
+
+client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
+
+def query_gemini(prompt: str, temp: float = 0.2):
     try:
-        response = client.models.generate(
-            model="gemini-1.5-flash",
-            input=prompt,
+        response = client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=prompt,
             config={"temperature": temp}
         )
-
-        # Estrazione del testo
-        if hasattr(response, "text"):
-            return response.text.strip()
-
-        if hasattr(response, "output_text"):
-            return response.output_text.strip()
-
-        return str(response)
-
+        return response.text
     except Exception as e:
         return f"[GEMINI ERROR] {e}"
-
-# -------------------------------------------------------------------
-# WHITELISTS (le tue liste complete vengono mantenute)
-# -------------------------------------------------------------------
+# -------------------------
+# WHITELIST = list of commands that can be used by an attacker (some commands includes util flags)
+# -------------------------
 
 WHITELIST = [
     # --- SAFE GENERAL ---
@@ -450,157 +403,283 @@ WHITELISTFOLDERS = [
     "/proc/<FILE>",
 ]
 
+def _whitelist_commands() -> str:
+    commands = "\n".join(WHITELIST)
+    return f"ALLOWED COMMANDS:\n{commands}\n\n"
 
-# -------------------------------------------------------------------
-# PROMPT BUILDER
-# -------------------------------------------------------------------
-def _whitelist_commands():
-    return "ALLOWED COMMANDS:\n" + "\n".join(WHITELIST)
+def _whitelist_files() -> str:
+    files = "\n".join(WHITELISTFILES)
+    return f"ALLOWED FILES:\n{files}\n\n"
 
-def _whitelist_files():
-    return "ALLOWED FILES:\n" + "\n".join(WHITELISTFILES)
-
-def _whitelist_folders():
-    return "ALLOWED FOLDERS:\n" + "\n".join(WHITELISTFOLDERS)
+def _whitelist_folders() -> str:
+    folders = "\n".join(WHITELISTFOLDERS)
+    return f"ALLOWED FOLDERS:\n{folders}\n\n"
 
 def make_prompt_topk_from_context(context: List[str], k: int) -> str:
     ctx = "\n".join(context[-10:])
-    return f"""
-You must simulate attacker behavior in an SSH honeypot.
-Predict the NEXT {k} commands.
 
-RULES:
-- Output EXACTLY {k} commands (one per line, no extra text).
-- Commands MUST be built ONLY using:
-  * ALLOWED COMMANDS
-  * ALLOWED FILES
-  * ALLOWED FOLDERS
-- Placeholders allowed ONLY if wrapped in <...>
-- Pipelines allowed ("|")
-- Redirections allowed only to whitelisted files.
+    prompt = (
+        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
+        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
+        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
 
-{_whitelist_commands()}
+        "OUTPUT RULES (MUST BE OBEYED):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
+        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
+        "3) Commands can be constructed using pipelines (linux command '|') \n"
+        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "6) Rank commands from most to least likely (first line = most likely).\n\n"
 
-{_whitelist_files()}
+        "WHITELIST (containing commands):\n"
+        f"{_whitelist_commands}\n\n"
 
-{_whitelist_folders()}
+        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
+        f"{_whitelist_files}\n\n"
 
-CONTEXT:
-{ctx}
+        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
+        f"{_whitelist_folders}\n\n"
 
-Now output EXACTLY {k} commands.
-"""
+        "CONTEXT (most recent last):\n"
+        f"{ctx}\n\n"
+
+        f"Now OUTPUT EXACTLY {k} candidate next commands"
+    )
+    return prompt
 
 def make_prompt_topk_for_single(cmd: str, k: int) -> str:
-    return f"""
-Predict the next {k} commands.
 
-RULES:
-- EXACTLY {k} commands, one per line.
-- Must use whitelist.
+    prompt = (
+        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
+        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
+        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
 
-{_whitelist_commands()}
+        "OUTPUT RULES (MUST BE OBEYED):\n"
+        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
+        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
+        "3) Commands can be constructed using pipelines (linux command '|') \n"
+        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
+        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
+        "6) Rank commands from most to least likely (first line = most likely).\n\n"
 
-{_whitelist_files()}
+        "WHITELIST (containing commands):\n"
+        f"{_whitelist_commands}\n\n"
 
-{_whitelist_folders()}
+        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
+        f"{_whitelist_files}\n\n"
 
-LAST COMMAND:
-{cmd}
+        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
+        f"{_whitelist_folders}\n\n"
 
-Now output EXACTLY {k} commands.
-"""
+        "LAST COMMAND EXECUTED (most recent):\n"
+        f"{cmd}\n\n"
 
-# -------------------------------------------------------------------
-# MAIN EVALUATION LOOP
-# -------------------------------------------------------------------
+        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line. "
+    )
+    return prompt
+
+
+
+# -------------------------
+# Main
+# -------------------------
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--sessions")
-    ap.add_argument("--single-cmd")
-    ap.add_argument("--single-file")
-    ap.add_argument("--out", default="output/gemini_results.jsonl")
-    ap.add_argument("--k", type=int, default=5)
-    ap.add_argument("--context-len", type=int, default=3)
-    ap.add_argument("--n", type=int, default=0)
-    ap.add_argument("--temp", type=float, default=0.2)
+    ap = argparse.ArgumentParser(description="Evaluate GEMINI top-K next-command prediction (sessions or single).")
+    ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
+    ap.add_argument("--single-cmd", help="Single command string to predict next for")
+    ap.add_argument("--single-file", help="File with commands (one per line), run prediction for each")
+    ap.add_argument("--out", default="output/ollama_gemini_results.jsonl")
+    ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
+    ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
+    ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
+    ap.add_argument("--temp", type=float, default=0.15)
+    ap.add_argument("--sleep", type=float, default=0.05)
+    ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
-    tasks = []
+    # validate modes
+    mode_sessions = bool(args.sessions)
+    mode_single = bool(args.single_cmd or args.single_file)
+    if not (mode_sessions or mode_single):
+        raise SystemExit("Provide --sessions OR --single-cmd OR --single-file")
 
-    if args.sessions:
+    tasks = []  # each task: dict with context(list) and expected (optional) and meta
+    if mode_sessions:
         if not os.path.exists(args.sessions):
             raise SystemExit(f"Sessions file not found: {args.sessions}")
-
+        sessions = []
         with open(args.sessions, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
+            for ln in f:
+                ln = ln.strip()
+                if not ln:
                     continue
-                obj = json.loads(line)
-                cmds = obj.get("commands")
-                if not cmds or len(cmds) < 2:
+                try:
+                    obj = json.loads(ln)
+                except:
                     continue
+                sid = obj.get("session") or obj.get("session_id") or obj.get("id")
+                cmds = obj.get("commands") or obj.get("cmds") or obj.get("commands_list")
+                if not sid or not cmds or len(cmds) < 2:
+                    continue
+                sessions.append({"session": sid, "commands": cmds})
+        # build sliding tasks: for each i -> i+1
+        for sess in sessions:
+            cmds = sess["commands"]
+            for i in range(len(cmds) - 1):
+                # build context window ending at cmds[i]
+                start = max(0, i - (args.context_len - 1))
+                context = cmds[start:i+1]  # include cmds[i] as last context command
+                expected = cmds[i+1]
+                tasks.append({"session": sess["session"], "index": i, "context": context, "expected": expected})
+    else:
+        # single mode
+        single_cmds = []
+        if args.single_cmd:
+            single_cmds.append(args.single_cmd.strip())
+        if args.single_file:
+            if not os.path.exists(args.single_file):
+                raise SystemExit(f"Single-file not found: {args.single_file}")
+            with open(args.single_file, "r", encoding="utf-8") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if ln:
+                        single_cmds.append(ln)
+        for cmd in single_cmds:
+            tasks.append({"session": "single", "index": 0, "context": [cmd], "expected": None})
 
-                # Sliding window
-                for i in range(len(cmds) - 1):
-                    start = max(0, i - (args.context_len - 1))
-                    context = cmds[start:i + 1]
-                    expected = cmds[i + 1]
+    if args.n and args.n > 0:
+        random.seed(args.seed)
+        random.shuffle(tasks)
+        tasks = tasks[:args.n]
 
-                    tasks.append({
-                        "session": obj.get("session"),
-                        "index": i,
-                        "context": context,
-                        "expected": expected
-                    })
+    total = len(tasks)
+    print(f"Total prediction tasks: {total}")
 
-    elif args.single_cmd:
-        tasks.append({
-            "session": "single",
-            "index": 0,
-            "context": [args.single_cmd],
-            "expected": None
-        })
-
-    elif args.single_file:
-        with open(args.single_file, "r") as f:
-            for line in f:
-                cmd = line.strip()
-                if cmd:
-                    tasks.append({
-                        "session": "single",
-                        "index": 0,
-                        "context": [cmd],
-                        "expected": None
-                    })
-
-    # ---------- LOOP ----------
-    fout = open(args.out, "w")
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    fout = open(args.out, "w", encoding="utf-8")
     results = []
 
-    for t in tqdm(tasks):
+    topk_hits = 0
+    top1_hits = 0
+    non_empty = 0
+
+    for t in tqdm(tasks, desc="Predicting", unit="step"):
         context = t["context"]
         expected = t.get("expected")
-
+        # build prompt
         if len(context) == 1:
             prompt = make_prompt_topk_for_single(context[0], args.k)
         else:
             prompt = make_prompt_topk_from_context(context, args.k)
 
-        raw = query_gemini(prompt, temp=args.temp)
+        try:
+            raw = query_gemini(prompt, temp=args.temp)
+            err = None
 
-        candidates = clean_llm_response(raw, args.k)
+        except Exception as e:
+            raw = ""
+            err = str(e)
+
+        candidates = raw.splitlines()[:args.k]
+        candidates_clean = [c.strip() for c in candidates if c.strip()]
+
+        # print expected + candidates (each on its own line)
+        print("\n---")
+        print("Context (last commands):")
+        for c in context:
+            print("  " + c)
+        if expected:
+            print("Expected:", expected)
+        else:
+            print("Expected: (not provided)")
+
+        print(f"Top-{args.k} candidates:")
+        if not candidates_clean:
+            if raw:
+                print(" (no parsed lines, raw response below)\n")
+                print(raw)
+            else:
+                print(" (no response)")
+        else:
+            for i, c in enumerate(candidates_clean, start=1):
+                print(f" {i}. {c}")
+
+        # permissive comparison: check if expected normalized matches any candidate normalized
+        hit = False
+        if expected and candidates_clean:
+            exp_keys = normalize_for_compare(expected)
+            if not exp_keys:
+                continue
+            exp_cmd = exp_keys[0]  # take first command in pipeline
+
+            for rnk, cand in enumerate(candidates_clean, start=1):
+                cand_keys = normalize_for_compare(cand)
+                if not cand_keys:
+                    continue
+                cand_cmd = cand_keys[0]
+
+                # require same command name, and if expected has path require path compatibility
+                name_match = (cand_cmd[0] == exp_cmd[0] and cand_cmd[0] != "")
+                if exp_cmd[1]:
+                    path_match = (cand_cmd[1] == exp_cmd[1]
+                                  or (cand_cmd[1] and (exp_cmd[1].startswith(cand_cmd[1]) or cand_cmd[1].startswith(exp_cmd[1]))))
+                else:
+                    path_match = True
+
+                if name_match and path_match:
+                    hit = True
+                    if rnk == 1:
+                        top1_hits += 1
+                    topk_hits += 1
+                    break
+
+        if candidates_clean:
+            non_empty += 1
 
         rec = {
+            "session": t.get("session"),
+            "index": t.get("index"),
             "context": context,
-            "expected": expected,
-            "candidates": candidates
+            "expected_raw": expected,
+            "candidates_raw": candidates_clean,
+            "hit_in_topk": bool(hit),
+            "error": err
         }
-        fout.write(json.dumps(rec) + "\n")
+        fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        fout.flush()
         results.append(rec)
+        time.sleep(args.sleep)
 
     fout.close()
-    print("Done.")
+
+    total_done = len(results)
+    topk_rate = topk_hits / total_done if total_done else 0.0
+    top1_rate = top1_hits / total_done if total_done else 0.0
+    non_empty_rate = non_empty / total_done if total_done else 0.0
+
+    summary = {
+        "total_tasks": total_done,
+        "non_empty": non_empty,
+        "topk_hits": topk_hits,
+        "top1_hits": top1_hits,
+        "topk_rate": topk_rate,
+        "top1_rate": top1_rate,
+        "k": args.k,
+        "context_len": args.context_len
+    }
+    with open(args.out + ".summary.json", "w", encoding="utf-8") as s:
+        json.dump(summary, s, indent=2)
+
+    print("\n=== SUMMARY ===")
+    print(f"Total tasks: {total_done}")
+    print(f"Non-empty predictions: {non_empty}/{total_done} ({non_empty_rate*100:.2f}%)")
+    print(f"Top-{args.k} hits: {topk_hits}/{total_done} -> {topk_rate*100:.2f}%")
+    print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
+    print(f"Detailed results: {args.out}")
+    print(f"Summary: {args.out}.summary.json")
+
 
 if __name__ == "__main__":
     main()
+
+    " python evaluate_gemini_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10"
