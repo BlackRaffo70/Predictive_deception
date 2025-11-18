@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
-"""
-Analisi del dataset Cowrie (formato aggregato con chiave 'data' per i comandi).
-Conta i comandi più usati dagli attaccanti e salva anche la data del file analizzato,
-includendola nel nome dei file di output.
 
-Genera due output:
-- RAW (originale)
-- CLEAN (normalizzato, sessioni <5 comandi rimosse)
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
 """
+- MODALITÀ:
+
+    Il codice è uno script Python per analizzare e normalizzare i dataset Cowrie, in particolare i log di sessioni SSH honeypot.
+    Le funzioni presentate e le loro funzionalità principali sono:
+
+        - normalize_command(cmd: str) -> Pulisce e normalizza un singolo comando shell (rimuove informazioni sensibili, maschera URL, IP, file, password ecc.)
+        - filter_short_sessions(file_path: str, min_length: int = 5) -> Filtra le sessioni con meno di min_length comandi
+        - analyze_cowrie_dataset(input_file: str, output_prefix: str) -> Analizza un file aggregato di sessioni Cowrie e genera output RAW (originale) e CLEAN (utilizza filter_short_sessions) con statistiche.
+
+- PRE-REQUISITI:
+    Aver scaricato il file di sessione Cowrie da dataset Zenodo passato con flag --input
+        
+- COMANDO PER ESECUZIONE:
+    python3 inspectDataset/analyze_and_clean.py --input data/cyberlab_2020-02-02.json --output output/cowrie
+"""
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
 
 import json
 import argparse
@@ -15,6 +31,10 @@ from collections import defaultdict, Counter
 import statistics
 import os
 import re
+
+# -------------------------
+# FUNCTIONS SECTION -> definition of the functions explained in the introduction
+# -------------------------
 
 def normalize_command(cmd: str) -> str:
     cmd = cmd.strip()
@@ -131,5 +151,3 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="output/cowrie")
     args = parser.parse_args()
     analyze_cowrie_dataset(args.input, args.output)
-
-    "python3 analyze_and_clean.py --input data/cowrie_2020-02-02.json --output output/cowrie"

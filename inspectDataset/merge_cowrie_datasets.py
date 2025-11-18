@@ -1,4 +1,28 @@
 #!/usr/bin/env python3
+
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
+"""
+- MODALITÀ:
+
+    Lo script serve a automatizzare l’elaborazione e il merge dei dataset Cowrie (utilizzando al suo interno analyze_and_clean.py)
+    La funzioni presentate e la sua funzionalità principale è:
+        
+        - merge_all(input_dir: str, output_prefix: str) -> esegue analyze_and_clean.py per ogni file, generando file RAW e CLEAN, esegue il merge di tutti i file RAW e CLEAN creati e aggiorna le statische in base a quest'ultimi
+
+- PRE-REQUISITI:
+    Presenza dello script analyze_and_clean.py
+        
+- COMANDO PER ESECUZIONE:
+    python inspectDataset/merge_cowrie_datasets.py
+"""
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
+
 import argparse
 import os
 from glob import glob
@@ -6,6 +30,10 @@ import subprocess
 import re
 import json
 import statistics
+
+# -------------------------
+# FUNCTION SECTION -> definition of the function explained in the introduction
+# -------------------------
 
 def merge_all(input_dir: str, output_prefix: str):
     os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
@@ -33,7 +61,7 @@ def merge_all(input_dir: str, output_prefix: str):
 
         cmd = [
             "python3",
-            "analyze_and_clean.py",
+            "inspectDataset/analyze_and_clean.py",
             "--input", path,
             "--output", out_prefix
         ]
@@ -122,5 +150,3 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="output/cowrie")
     args = parser.parse_args()
     merge_all(args.input_dir, args.output)
-
-" python3 merge_cowrie_datasets.py"

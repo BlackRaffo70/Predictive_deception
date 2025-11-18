@@ -1,7 +1,30 @@
 #!/usr/bin/env python3
+
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
+"""
+- MODALITÀ:
+
+    
+- PRE-REQUISITI:
+    
+        
+- COMANDO PER ESECUZIONE:
+    
+"""
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
 import json
 import os
 import sys
+
+# -------------------------
+# FUNCTION SECTION -> definition of the function explained in the introduction
+# -------------------------
 
 def convert_sessions(input_path, output_path):
 
