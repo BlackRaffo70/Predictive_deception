@@ -16,7 +16,7 @@
 
 - PRE-REQUISITI (comandi da eseguire da riga di comando):
 
-    source .env/bin/activate            -> comando per attivare eviroment virtuale
+    source .venv/bin/activate           -> comando per attivare enviroment virtuale
     pip install requests tqdm           -> comando per installare libreria requests (per effettuare richieste HTTP) e tqdm (mostrare barre di avanzamento per monitorare l'esecuzione di operazioni)      
 
     - Comando per installare il modello di ollama:

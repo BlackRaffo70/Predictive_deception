@@ -17,7 +17,7 @@
 - PRE-REQUISITI (comandi da eseguire da riga di comando):
 
     export GOOGLE_API_KEY=CHIAVE API    -> comando per esportare in locale la chiave per eseguire API Gemini (da rifare ogni volta che si chiude il terminale)
-    source .env/bin/activate            -> comando per attivare eviroment virtuale
+    source .venv/bin/activate           -> comando per attivare enviroment virtuale
     pip install --upgrade google-genai" -> comando per scaricare le API Gemini
 
 - COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):

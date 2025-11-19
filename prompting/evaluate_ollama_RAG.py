@@ -17,8 +17,15 @@
 
 - COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):
     
-    python3 prompting/evaluate_GEMINI_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
-    
+    python3 prompting/evaluate_ollama_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
+
+- OSSERVAZIONI:
+
+    L'esecuzione di questo codice può portare a due problemi in particolare:
+
+        - [OLLAMA ERROR] Extra data: line 2 column 1 (char 97) -> risolto attraverso la disattivazione dello stream nella risposta del modello
+        - [OLLAMA ERROR] HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60) -> ristretto aumentando il tempo di timeout. Questo problema è dovuto principalmente ad un sovraccarico del PC dovuto al modello utilizzato e alla disattivazione dello streaming che costringe ollama a generare l'intera risposta prima di inviarla
+        - Formato del file di output contenente backtip e elenchi numerati che comprettevano la valutazione delle prediction -> problema dovuto al modello codellama, risolto attraverso l'introduzione della funzione clean_ollama_candidate(line: str)
 """
 
 # -------------------------
@@ -34,6 +41,7 @@ import time
 import random
 import sys
 import utils
+import requests
 from typing import List, Tuple
 from tqdm import tqdm
 
@@ -141,7 +149,11 @@ class VectorContextRetriever:
 # 3. INTERAZIONE OLLAMA
 # =============================================================================
 
-import requests
+def clean_ollama_candidate(line: str) -> str:
+    line = line.strip()
+    line = re.sub(r"^\d+\.\s*", "", line)   # rimuove "1. "
+    line = line.strip("`")                  # rimuove backticks
+    return line.strip()
 
 def query_ollama(prompt: str, model_name: str, temp: float = 0.0) -> str:
     """
@@ -151,13 +163,14 @@ def query_ollama(prompt: str, model_name: str, temp: float = 0.0) -> str:
         payload = {
             "model": model_name,
             "prompt": prompt,
+            "stream": False,
             "options": {
                 "temperature": temp,
                 "top_p": 0.1
             }
         }
 
-        r = requests.post("http://localhost:11434/api/generate", json=payload, timeout=60)
+        r = requests.post("http://localhost:11434/api/generate", json=payload, timeout=120)
         r.raise_for_status()
         data = r.json()
 
@@ -200,7 +213,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate Gemini with RAG Vector Search")
     parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
     parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
-    parser.add_argument("--out", default="output/gemini_rag_results.jsonl")
+    parser.add_argument("--out", default="output/ollama_rag_results.jsonl")
     parser.add_argument("--model", default="codellama", help="Modello Ollama (es. llama3, mistral, codellama)")
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
@@ -275,7 +288,7 @@ def main():
             # --- CODICE NUOVO CORRETTO ---
             candidates = []
             if raw_response:  # Verifica che non sia None o vuoto
-                candidates = [line.strip() for line in raw_response.splitlines() if line.strip()]
+                candidates = [clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
             
             candidates = candidates[:args.k]
             
