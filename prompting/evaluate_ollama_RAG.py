@@ -71,11 +71,8 @@ class VectorContextRetriever:
         )
 
     def index_file(self, jsonl_path: str, context_len: int = 5):
-        # Se la cartella esiste ed è piena, non ricreare il DB
-        if os.path.exists(self.client._path) and \
-                os.path.isdir(self.client._path) and \
-                len(os.listdir(self.client._path)) > 0:
-            print(f"[RAG] DB già esistente e non vuoto ({self.collection.count()} vettori). Skip indicizzazione.")
+        if not os.path.exists(jsonl_path):
+            print(f"[RAG ERROR] File non trovato: {jsonl_path}")
             return
 
         if self.collection.count() > 0:
