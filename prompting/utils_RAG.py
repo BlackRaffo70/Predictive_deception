@@ -4,13 +4,12 @@ import re
 import json
 import time
 import random
+import general_utils  # contiene normalize_for_compare
 from typing import List
 from tqdm import tqdm
 
 import chromadb
 from chromadb.utils import embedding_functions
-
-import utils_topk  # contiene normalize_for_compare
 
 
 import chromadb
@@ -205,12 +204,12 @@ def run_evaluation(args, query_model):
             hit = False
             hit_rank = 0
             
-            norm_expected = utils_topk.normalize_for_compare(expected)
+            norm_expected = general_utils.normalize_for_compare(expected)
             if norm_expected:
                 exp_name, exp_path = norm_expected[0]
                 
                 for rnk, cand in enumerate(candidates, 1):
-                    norm_cand = utils_topk.normalize_for_compare(cand)
+                    norm_cand = general_utils.normalize_for_compare(cand)
                     if not norm_cand: 
                         continue
                     cand_name, cand_path = norm_cand[0]
