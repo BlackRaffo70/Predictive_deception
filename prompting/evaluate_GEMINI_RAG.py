@@ -1,9 +1,30 @@
 #!/usr/bin/env python3
+
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
+
 """
-evaluate_GEMINI_RAG_v2.py
-Valutazione di Attacchi Honeypot tramite Google Gemini con RAG (Vector Search).
-Include gestione errori modello e listing automatico modelli disponibili.
+- MODALITÀ:
+
+
+- PRE-REQUISITI (comandi da eseguire da riga di comando):
+
+    export GOOGLE_API_KEY=CHIAVE API    -> comando per esportare in locale la chiave per eseguire API Gemini (da rifare ogni volta che si chiude il terminale)
+    source .env/bin/activate            -> comando per attivare enviroment virtuale
+    pip install chromedb                -> comando per scaricare 
+    pip install sentence-transformers   -> comando per scaricare 
+
+- COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):
+    
+    python3 prompting/evaluate_GEMINI_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
+    
 """
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
 
 from __future__ import annotations
 import argparse
@@ -13,6 +34,7 @@ import re
 import time
 import random
 import sys
+import utils
 from typing import List, Tuple
 from tqdm import tqdm
 from google.genai.types import HarmCategory, HarmBlockThreshold
@@ -29,35 +51,6 @@ except ImportError:
 # 1. CONFIGURAZIONE & UTILS
 # =============================================================================
 
-CMD_NAME_RE = re.compile(r"[a-zA-Z0-9._/\-]+")
-PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")
-PLACEHOLDER_RE = re.compile(r"<[^>]+>")
-
-def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
-    if not cmd: return []
-    s = cmd.strip()
-    s = re.sub(r'^```(?:bash|sh)?|```$', '', s, flags=re.I).strip().replace('`', '')
-    s = re.sub(r'^(the next command( is|:)?|predicted command( is|:)?)[\s:,-]*', '', s, flags=re.I).strip()
-    
-    segments = re.split(r"\s*\|\s*", s)
-    results = []
-
-    for seg in segments:
-        seg = seg.strip()
-        if not seg: continue
-        
-        seg_clean = PLACEHOLDER_RE.sub("", seg).strip()
-        seg_clean = re.split(r"\s*>\s*|\s*2>\s*|\s*>>\s*", seg_clean)[0].strip()
-        
-        m = CMD_NAME_RE.search(seg_clean.lstrip())
-        name = m.group(0).lower() if m else ""
-        
-        path = ""
-        pm = PATH_RE.search(seg_clean)
-        if pm: path = pm.group(0)
-        
-        results.append((name, path))
-    return results
 
 def check_contamination(target_cmd: str, retrieved_examples_text: str) -> bool:
     target = target_cmd.strip()
@@ -331,12 +324,12 @@ def main():
             hit = False
             hit_rank = 0
             
-            norm_expected = normalize_for_compare(expected)
+            norm_expected = utils.normalize_for_compare(expected)
             if norm_expected:
                 exp_name, exp_path = norm_expected[0]
                 
                 for rnk, cand in enumerate(candidates, 1):
-                    norm_cand = normalize_for_compare(cand)
+                    norm_cand = utils.normalize_for_compare(cand)
                     if not norm_cand: continue
                     cand_name, cand_path = norm_cand[0]
                     
