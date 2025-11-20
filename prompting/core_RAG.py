@@ -1,19 +1,27 @@
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
+
 import os
 import sys
 import re
 import json
 import time
 import random
-import general_utils  # contiene normalize_for_compare
+import utils                            
 from typing import List
 from tqdm import tqdm
-
 import chromadb
 from chromadb.utils import embedding_functions
 
-
-import chromadb
-from chromadb.utils import embedding_functions
+# -------------------------
+# CLASS SECTION
+# -------------------------
 
 class VectorContextRetriever:
     def __init__(self, collection_name="honeypot_attacks", persist_dir="./chroma_storage"):
@@ -94,6 +102,10 @@ class VectorContextRetriever:
             )
         return formatted_examples
     
+# -------------------------
+# FUNCTION SECTION
+# -------------------------
+    
 def check_contamination(target_cmd: str, retrieved_examples_text: str) -> bool:
     target = target_cmd.strip()
     if len(target) < 4: return False
@@ -127,7 +139,8 @@ CURRENT SESSION HISTORY:
 PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
 
-def run_evaluation(args, query_model):
+
+def prediction_evaluation(args, query_model):
     # 1. Setup RAG
     rag = VectorContextRetriever(persist_dir="./chroma_storage")
     source_for_index = args.index_file if args.index_file else args.sessions
@@ -204,12 +217,12 @@ def run_evaluation(args, query_model):
             hit = False
             hit_rank = 0
             
-            norm_expected = general_utils.normalize_for_compare(expected)
+            norm_expected = utils.normalize_for_compare(expected)
             if norm_expected:
                 exp_name, exp_path = norm_expected[0]
                 
                 for rnk, cand in enumerate(candidates, 1):
-                    norm_cand = general_utils.normalize_for_compare(cand)
+                    norm_cand = utils.normalize_for_compare(cand)
                     if not norm_cand: 
                         continue
                     cand_name, cand_path = norm_cand[0]
