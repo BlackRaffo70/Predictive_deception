@@ -13,6 +13,7 @@ import shutil
 # -------------------------
 
 RECORD_ID = "3687527"                                               # record del dataset Zenodo considerato
+TMP_ROOT_PATH = os.path.expanduser("~/Downloads")  
 DEVICE_PATH = "/media/matteo/BNKRBL"                                # path del dispositivo di archiviazione esterno
 OUTPUT_DIR = f"{DEVICE_PATH}/DatasetZenodo"                          # cartella dove vengono scaricati e decompressi i file   
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -64,18 +65,20 @@ for file in tqdm(gz_files, desc="Processo file", unit="file"):
     fname = file["key"]
     download_url = file.get("links", {}).get("self")
 
-    path_file = os.path.join(OUTPUT_DIR, fname)
+    tmp_path_file = os.path.join(TMP_ROOT_PATH, fname) 
+    tmp_path_json = f"{tmp_path_file[:-3]}" 
+    perm_path_file = os.path.join(OUTPUT_DIR, fname[:-3])                     
 
     file_size = file.get("size", 0)
 
     # Fase di download: prima si controlla che il file non sia già stato scaricato e successivamente lo si scarica nella cartella specificata da OUTPUT_DIR
-    if not os.path.exists(path_file):
+    if not os.path.exists(tmp_path_file):
         resp = requests.get(download_url, stream=True)
         resp.raise_for_status()
 
         chunk_size = 8192
 
-        with open(path_file, "wb") as out, tqdm(
+        with open(tmp_path_file, "wb") as out, tqdm(
             total=file_size,
             unit="B",
             unit_scale=True,
@@ -93,13 +96,15 @@ for file in tqdm(gz_files, desc="Processo file", unit="file"):
 
     # Fase di decompressione: prima si esegue il comando, se il file esiste ancora, vuol dire che il file è corrotto, di conseguenza si scarta
     try:
-        tqdm.write(f"[WAIT] Decompressione del file {path_file}")
-        subprocess.run(["gzip", "-df", path_file], check=True)
-        path_json = f"{path_file[:-3]}"
+        tqdm.write(f"[WAIT] Decompressione del file {tmp_path_file}")
+        subprocess.run(["gzip", "-df", tmp_path_file], check=True)
+        tqdm.write(f"[MOVE] Spostamento del file {tmp_path_json} in {perm_path_file}")
+        subprocess.run(["mv", tmp_path_json, perm_path_file], check=True)
+    
         # aggiungi dimensione del json
-        total_json_bytes += os.path.getsize(path_json)
+        total_json_bytes += os.path.getsize(perm_path_file)
         total_gz_decompressed += 1
-        tqdm.write(f"[OK] {os.path.basename(path_json)} generato e .gz eliminato.")
+        tqdm.write(f"[OK] {os.path.basename(perm_path_file)} generato e .gz eliminato.")
 
     except subprocess.CalledProcessError:
         tqdm.write(f"[ERRORE] File corrotto: {fname} (saltato)")
