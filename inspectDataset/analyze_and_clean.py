@@ -12,13 +12,18 @@
 
         - normalize_command(cmd: str) -> Pulisce e normalizza un singolo comando shell (rimuove informazioni sensibili, maschera URL, IP, file, password ecc.)
         - filter_short_sessions(file_path: str, min_length: int = 5) -> Filtra le sessioni con meno di min_length comandi
-        - analyze_cowrie_dataset(input_file: str, output_prefix: str) -> Analizza un file aggregato di sessioni Cowrie e genera due file di output: RAW (comandi NON normalizzati) e CLEAN (comandi normalizzati) con relative statistiche.
+        - analyze_cowrie_dataset(input_file: str, output_prefix: str) -> Analizza un file aggregato di sessioni Cowrie e genera file di output a seconda dell'opzione --want: file RAW (comandi NON normalizzati) e file CLEAN (comandi normalizzati), restituendo le statistiche
 
 - PRE-REQUISITI:
     Aver scaricato il file di sessione Cowrie da dataset Zenodo. Per farlo si può utilizzare il file utilities_script/download_zenodo.py
         
 - COMANDO PER ESECUZIONE:
     python3 inspectDataset/analyze_and_clean.py --input data/cyberlab_2020-02-02.json --output output/cowrie
+
+    dove le flag sono:
+    - input = File di input da analizzare
+    - output = Radice dei file di output generati
+    - want = Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi
 """
 
 # -------------------------
@@ -113,39 +118,42 @@ def analyze_cowrie_dataset(args):
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
     # Creazione file RAW filtrato -> i comandi di ogni sessione NON vengono normalizzati
-    out_sessions_raw = f"{args.output}_sessions_{file_date}_RAW.jsonl"
-    with open(out_sessions_raw, "w", encoding="utf-8") as out:
-        for sid, cmds in sessions.items():
-            out.write(json.dumps({"session": sid, "commands": cmds, "source_file": file_date}) + "\n")
-    filter_short_sessions(out_sessions_raw, min_length=5)
+    if args.want == "both" or args.want == "raw":
+        out_sessions_raw = f"{args.output}_sessions_{file_date}_RAW.jsonl"
+        with open(out_sessions_raw, "w", encoding="utf-8") as out:
+            for sid, cmds in sessions.items():
+                out.write(json.dumps({"session": sid, "commands": cmds, "source_file": file_date}) + "\n")
+        filter_short_sessions(out_sessions_raw, min_length=5)
 
-    print(f"💾 RAW salvato: {out_sessions_raw}")
+        print(f"💾 RAW salvato: {out_sessions_raw}")
 
     # Creazione file CLEAN filtrato -> i comandi di ogni sessione vengono normalizzati
-    out_sessions_clean = f"{args.output}_sessions_{file_date}_CLEAN.jsonl"
-    with open(out_sessions_clean, "w", encoding="utf-8") as out:
-        for sid, cmds in sessions.items():
-            cleaned = [normalize_command(c) for c in cmds]  # Normalizzazione del comando
-            if cleaned:
-                out.write(json.dumps({"session": sid, "commands": cleaned, "source_file": file_date}) + "\n")
-    filter_short_sessions(out_sessions_clean, min_length=5)
+    if args.want == "both" or args.want == "clean":
+        out_sessions_clean = f"{args.output}_sessions_{file_date}_CLEAN.jsonl"
+        with open(out_sessions_clean, "w", encoding="utf-8") as out:
+            for sid, cmds in sessions.items():
+                cleaned = [normalize_command(c) for c in cmds]  # Normalizzazione del comando
+                if cleaned:
+                    out.write(json.dumps({"session": sid, "commands": cleaned, "source_file": file_date}) + "\n")
+        filter_short_sessions(out_sessions_clean, min_length=5)
 
-    print(f"💾 CLEAN salvato: {out_sessions_clean}")
+        print(f"💾 CLEAN salvato: {out_sessions_clean}")
     
-    # Creazione file statistiche
-    out_stats = f"{args.output}_stats_{file_date}.json"
-    with open(out_stats, "w", encoding="utf-8") as s:
-        json.dump({
-            "source_file": file_date,
-            "n_sessions": n_sessions,
-            "avg_len": avg_len,
-            "median_len": median_len,
-            "event_types": dict(event_counter)
-        }, s, indent=2)
+    # Return delle statistiche del file
+    stats = {
+        "source_file": file_date,
+        "n_sessions": n_sessions,
+        "avg_len": avg_len,
+        "median_len": median_len,
+        "event_types": dict(event_counter)
+    }
+
+    return stats
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="File di input da analizzare")
-    parser.add_argument("--output", default="output/cowrie", help="Radice del file di output generato")
+    parser.add_argument("--output", default="output/cowrie", help="Radice dei file di output generati")
+    parser.add_argument("--want", choices=["raw", "clean", "both"], default="both", help="Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi")
     args = parser.parse_args()
     analyze_cowrie_dataset(args)

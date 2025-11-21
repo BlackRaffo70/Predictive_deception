@@ -20,7 +20,12 @@
     Presenza dello script analyze_and_clean.py
         
 - COMANDO PER ESECUZIONE:
-    python inspectDataset/merge_cowrie_datasets.py
+    python inspectDataset/merge_cowrie_datasets.py --want clean
+
+    dove le flag sono:
+    - input = Cartella di input da analizzare
+    - output = Radice dei file di output generati
+    - want = Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi
 """
 
 # -------------------------
@@ -30,11 +35,11 @@
 import argparse
 import os
 from glob import glob
-import subprocess
 import re
 import json
 import random
 import statistics
+import analyze_and_clean
 
 # -------------------------
 # FUNCTION SECTION -> definition of the function explained in the introduction
@@ -59,10 +64,10 @@ def split_jsonl_file(input_path: str, output_train: str, output_test: str, train
     with open(output_test, "w", encoding="utf-8") as f_test:
         f_test.writelines(test_lines)
 
-def merge_all(input_dir: str, output_prefix: str):
-    os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
+def merge_all(args):
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-    files = sorted(glob(os.path.join(input_dir, "*.json")))
+    files = sorted(glob(os.path.join(args.input, "*.json")))
     if not files:
         print("❌ Nessun file JSON trovato.")
         return
@@ -71,7 +76,6 @@ def merge_all(input_dir: str, output_prefix: str):
 
     raw_outputs = []
     clean_outputs = []
-    stats_outputs = []
     aggregated_events = {}
 
     # analyze_and_clean.py per ogni file
@@ -80,69 +84,60 @@ def merge_all(input_dir: str, output_prefix: str):
         match = re.search(r"(\d{4}-\d{2}-\d{2})", basename)
         date = match.group(1) if match else "unknown"
 
-        out_prefix = f"{output_prefix}_{date}"
-
         print(f"▶️ Elaborazione: {basename}")
+        class Arguments:
+            input = path
+            output = args.output
+            want = args.want
 
-        cmd = [
-            "python3",
-            "inspectDataset/analyze_and_clean.py",
-            "--input", path,
-            "--output", out_prefix
-        ]
+        stats = analyze_and_clean.analyze_cowrie_dataset(Arguments)
 
-        subprocess.run(cmd, check=True)
-
-        raw_path = f"{out_prefix}_sessions_{date}_RAW.jsonl"
-        clean_path = f"{out_prefix}_sessions_{date}_CLEAN.jsonl"
-        stats_path = f"{out_prefix}_stats_{date}.json"
-
-        raw_outputs.append(raw_path)
-        clean_outputs.append(clean_path)
-        stats_outputs.append(stats_path)
+        if args.want == "both" or args.want == "raw":   
+            raw_path = f"{args.output}_sessions_{date}_RAW.jsonl"
+            raw_outputs.append(raw_path)
+        if args.want == "both" or args.want == "clean":  
+            clean_path = f"{args.output}_sessions_{date}_CLEAN.jsonl"
+            clean_outputs.append(clean_path)
 
         # aggiunge EVENT_TYPES alle stats globali
-        if os.path.exists(stats_path):
-            try:
-                with open(stats_path, "r", encoding="utf-8") as s:
-                    st = json.load(s)
-                    events = st.get("event_types", {})
-                    for k, v in events.items():
-                        aggregated_events[k] = aggregated_events.get(k, 0) + v
-            except:
-                pass
+        events = stats.get("event_types", {})
+        for k, v in events.items():
+            aggregated_events[k] = aggregated_events.get(k, 0) + v
 
     print("\n🧩 Tutti i file elaborati. Inizio merge finale...\n")
+    
+    raw_lengths = []
+    clean_lengths = []
 
     # Merge di tutti i file RAW
-    merged_raw_path = f"{output_prefix}_ALL_RAW.jsonl"
-    with open(merged_raw_path, "w", encoding="utf-8") as out:
-        for fp in raw_outputs:
-            if os.path.exists(fp):
-                with open(fp, "r", encoding="utf-8") as f:
-                    out.write(f.read())
+    if args.want == "both" or args.want == "raw":
+        merged_raw_path = f"{args.output}_ALL_RAW.jsonl"
+        with open(merged_raw_path, "w", encoding="utf-8") as out:
+            for fp in raw_outputs:
+                if os.path.exists(fp):
+                    with open(fp, "r", encoding="utf-8") as f:
+                        out.write(f.read())
+        
+        with open(merged_raw_path, "r", encoding="utf-8") as f:
+            for line in f:
+                obj = json.loads(line)
+                raw_lengths.append(len(obj.get("commands", [])))
 
     # Merge di tutti i file CLEAN
-    merged_clean_path = f"{output_prefix}_ALL_CLEAN.jsonl"
-    with open(merged_clean_path, "w", encoding="utf-8") as out:
-        for fp in clean_outputs:
-            if os.path.exists(fp):
-                with open(fp, "r", encoding="utf-8") as f:
-                    out.write(f.read())
+    if args.want == "both" or args.want == "clean":
+        merged_clean_path = f"{args.output}_ALL_CLEAN.jsonl"
+        with open(merged_clean_path, "w", encoding="utf-8") as out:
+            for fp in clean_outputs:
+                if os.path.exists(fp):
+                    with open(fp, "r", encoding="utf-8") as f:
+                        out.write(f.read())
+        
+        with open(merged_clean_path, "r", encoding="utf-8") as f:
+            for line in f:
+                obj = json.loads(line)
+                clean_lengths.append(len(obj.get("commands", [])))
 
     # Calcolo statistiche aggregate
-    raw_lengths = []
-    with open(merged_raw_path, "r", encoding="utf-8") as f:
-        for line in f:
-            obj = json.loads(line)
-            raw_lengths.append(len(obj.get("commands", [])))
-
-    clean_lengths = []
-    with open(merged_clean_path, "r", encoding="utf-8") as f:
-        for line in f:
-            obj = json.loads(line)
-            clean_lengths.append(len(obj.get("commands", [])))
-
     aggregated_stats = {
         "total_source_files": len(files),
         "total_sessions_raw": len(raw_lengths),
@@ -154,28 +149,38 @@ def merge_all(input_dir: str, output_prefix: str):
         "event_types": aggregated_events
     }
 
-    stats_final_path = f"{output_prefix}_ALL_STATS.json"
+    stats_final_path = f"{args.output}_ALL_STATS.json"
     with open(stats_final_path, "w", encoding="utf-8") as s:
         json.dump(aggregated_stats, s, indent=2)
 
-    # Split del file CLEAN finale
-    train_path = f"{output_prefix}_TRAIN.jsonl"
-    test_path = f"{output_prefix}_TEST.jsonl"
+    # Split del file finale. 
+    # Questo varia a seconda della modalità scelta: se presente il file CLEAN si esegue ad esso, altrimenti al file RAW
+    train_path = f"{args.output}_TRAIN.jsonl"
+    test_path = f"{args.output}_TEST.jsonl"
 
-    print("\n✂️  Suddivisione del file CLEAN in TRAIN (70%) e TEST (30%)...")
+    if args.want == "both" or args.want == "clean":
+        print("\n✂️  Suddivisione del file CLEAN in TRAIN (70%) e TEST (30%)...")
+        split_jsonl_file(input_path=merged_clean_path, output_train=train_path, output_test=test_path, train_ratio=0.7)
+    else:
+        print("\n✂️  Suddivisione del file RAW in TRAIN (70%) e TEST (30%)...")
+        split_jsonl_file(input_path=merged_raw_path, output_train=train_path, output_test=test_path, train_ratio=0.7)
 
-    split_jsonl_file(input_path=merged_clean_path, output_train=train_path, output_test=test_path, train_ratio=0.7)
-
-    # Eliminazione file intermedi (tutti i file CLEAN, RAW e stats dei singoli file del dataset)
+    # Eliminazione file intermedi (tutti i file CLEAN e RAW dei singoli file del dataset)
     print("\n🧹 Eliminazione dei file intermedi...")
-    for fp in raw_outputs + clean_outputs + stats_outputs:
-        if os.path.exists(fp):
-            os.remove(fp)
+    if args.want == "both" or args.want == "clean":
+        for fp in clean_outputs:
+            if os.path.exists(fp):
+                os.remove(fp)
+
+    if args.want == "both" or args.want == "raw":
+        for fp in raw_outputs:
+            if os.path.exists(fp):
+                os.remove(fp)
 
     # Stampe finali
     print("\n🎉 Merge completato con successo!")
-    print(f"📦 RAW finale:   {merged_raw_path}")
-    print(f"📦 CLEAN finale: {merged_clean_path}")
+    if args.want == "both" or args.want == "raw": print(f"📦 RAW finale:   {merged_raw_path}")
+    if args.want == "both" or args.want == "clean": print(f"📦 CLEAN finale: {merged_clean_path}")
     print(f"📊 STATS finali: {stats_final_path}")
     print(f"📂 TRAIN: {train_path}")
     print(f"📂 TEST:  {test_path}")
@@ -183,7 +188,8 @@ def merge_all(input_dir: str, output_prefix: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input-dir", default="data")
-    parser.add_argument("--output", default="output/cowrie")
+    parser.add_argument("--input", default="data", help="Cartella da analizzare")
+    parser.add_argument("--output", default="output/cowrie", help="Radice dei file di output generati")
+    parser.add_argument("--want", choices=["raw", "clean", "both"], default="both", help="Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi")
     args = parser.parse_args()
-    merge_all(args.input_dir, args.output)
+    merge_all(args)
