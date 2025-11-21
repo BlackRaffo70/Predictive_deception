@@ -115,47 +115,50 @@ def downloading_and_decompression(args):
             perm_path_file = path_json
     
         file_size = file.get("size", 0)
+        # Prima controllo se il file non è già stato scaricato e decompresso
+        if not os.path.exists(perm_path_file):
+            # Prima di eseguire il download, controllo che il file .gz non sia già stato scaricato e successivamente lo si scarica
+            if not os.path.exists(path_file):
+                resp = requests.get(download_url, stream=True)
+                resp.raise_for_status()
 
-        # Fase di download: prima si controlla che il file non sia già stato scaricato e successivamente lo si scarica nella cartella specificata da OUTPUT_DIR
-        if not os.path.exists(path_file):
-            resp = requests.get(download_url, stream=True)
-            resp.raise_for_status()
+                chunk_size = 8192
 
-            chunk_size = 8192
+                with open(path_file, "wb") as out, tqdm(
+                    total=file_size,
+                    unit="B",
+                    unit_scale=True,
+                    desc=f"Download {fname}",
+                    leave=False
+                ) as pbar:
+                    for chunk in resp.iter_content(chunk_size=chunk_size):
+                        out.write(chunk)
+                        pbar.update(len(chunk))
 
-            with open(path_file, "wb") as out, tqdm(
-                total=file_size,
-                unit="B",
-                unit_scale=True,
-                desc=f"Download {fname}",
-                leave=False
-            ) as pbar:
-                for chunk in resp.iter_content(chunk_size=chunk_size):
-                    out.write(chunk)
-                    pbar.update(len(chunk))
+                total_downloaded_bytes += file_size
+                total_gz_downloaded+=1
+            else:
+                tqdm.write(f"[SKIP] Già scaricato: {fname}")
 
-            total_downloaded_bytes += file_size
-            total_gz_downloaded+=1
+            # Fase di decompressione: prima si esegue il comando, se il file esiste ancora, vuol dire che il file è corrotto, di conseguenza si scarta
+            try:
+                tqdm.write(f"[WAIT] Decompressione del file {path_file}")
+                subprocess.run(["gzip", "-df", path_file], check=True)
+
+                if args.dst == "ext":
+                    tqdm.write(f"[MOVE] Spostamento del file {path_json} in {perm_path_file}")
+                    shutil.move(path_json, perm_path_file)
+            
+                # aggiungi dimensione del json
+                total_json_bytes += os.path.getsize(perm_path_file)
+                total_gz_decompressed += 1
+                tqdm.write(f"[OK] {os.path.basename(perm_path_file)} generato e .gz eliminato.")
+
+            except subprocess.CalledProcessError:
+                tqdm.write(f"[ERRORE] File corrotto: {fname} (saltato)")
         else:
-            tqdm.write(f"[SKIP] Già scaricato: {fname}")
-
-        # Fase di decompressione: prima si esegue il comando, se il file esiste ancora, vuol dire che il file è corrotto, di conseguenza si scarta
-        try:
-            tqdm.write(f"[WAIT] Decompressione del file {path_file}")
-            subprocess.run(["gzip", "-df", path_file], check=True)
-
-            if args.dst == "ext":
-                tqdm.write(f"[MOVE] Spostamento del file {path_json} in {perm_path_file}")
-                shutil.move(path_json, perm_path_file)
-        
-            # aggiungi dimensione del json
-            total_json_bytes += os.path.getsize(perm_path_file)
-            total_gz_decompressed += 1
-            tqdm.write(f"[OK] {os.path.basename(perm_path_file)} generato e .gz eliminato.")
-
-        except subprocess.CalledProcessError:
-            tqdm.write(f"[ERRORE] File corrotto: {fname} (saltato)")
-
+            tqdm.write(f"[SKIP] Già scaricato nella destinazione: {perm_path_file}")
+            
     # Stampe finali
     print("\n\n===== RISULTATI FINALI =====")
     print(f"Totale .gz scaricati:               {total_gz_downloaded}")
