@@ -7,15 +7,15 @@
 """
 - MODALITÀ:
 
-    Il codice è uno script Python per analizzare e normalizzare i dataset Cowrie, in particolare i log di sessioni SSH honeypot.
+    Il codice è uno script Python per processare un SINGOLO file del dataset Zenodo record=3687527, contenente sessioni di attacco di un Cowrie SSH honeypot.
     Le funzioni presentate e le loro funzionalità principali sono:
 
         - normalize_command(cmd: str) -> Pulisce e normalizza un singolo comando shell (rimuove informazioni sensibili, maschera URL, IP, file, password ecc.)
         - filter_short_sessions(file_path: str, min_length: int = 5) -> Filtra le sessioni con meno di min_length comandi
-        - analyze_cowrie_dataset(input_file: str, output_prefix: str) -> Analizza un file aggregato di sessioni Cowrie e genera output RAW (originale) e CLEAN (utilizza filter_short_sessions) con statistiche.
+        - analyze_cowrie_dataset(input_file: str, output_prefix: str) -> Analizza un file aggregato di sessioni Cowrie e genera due file di output: RAW (comandi NON normalizzati) e CLEAN (comandi normalizzati) con relative statistiche.
 
 - PRE-REQUISITI:
-    Aver scaricato il file di sessione Cowrie da dataset Zenodo passato con flag --input
+    Aver scaricato il file di sessione Cowrie da dataset Zenodo. Per farlo si può utilizzare il file utilities_script/download_zenodo.py
         
 - COMANDO PER ESECUZIONE:
     python3 inspectDataset/analyze_and_clean.py --input data/cyberlab_2020-02-02.json --output output/cowrie
@@ -52,32 +52,41 @@ def normalize_command(cmd: str) -> str:
 
 def filter_short_sessions(file_path: str, min_length: int = 5):
     filtered_lines = []
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
+
+    # Per ogni riga del file specificato, vedo se il numero di comandi per sessione dell'elemento json è >= min_length
+    with open(file_path, "r", encoding="utf-8") as file:
+
+        for line in file:
+
             try:
                 obj = json.loads(line)
                 if "commands" in obj and len(obj["commands"]) >= min_length:
                     filtered_lines.append(obj)
             except json.JSONDecodeError:
                 continue
-    with open(file_path, "w", encoding="utf-8") as f:
+
+    # Il file viene sovrascritto con i soli elementi json che contengono >= min_length comandi per sessione
+    with open(file_path, "w", encoding="utf-8") as file:
+
         for obj in filtered_lines:
-            f.write(json.dumps(obj, ensure_ascii=False) + "\n")
+            file.write(json.dumps(obj, ensure_ascii=False) + "\n")
+            
     print(f"Filtrate sessioni con meno di {min_length} comandi. Rimanenti: {len(filtered_lines)}")
 
-def analyze_cowrie_dataset(input_file: str, output_prefix: str):
-    print(f"🔍 Analisi file aggregato: {input_file}")
+def analyze_cowrie_dataset(args):
+    print(f"🔍 Analisi file aggregato: {args.input}")
 
-    source_name = os.path.basename(input_file)
+    # Prelevo la data, utile per i file di output
+    source_name = os.path.basename(args.input)
     match = re.search(r"(\d{4}-\d{2}-\d{2})", source_name)
     file_date = match.group(1) if match else "unknown"
 
-    with open(input_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Caricamento del contenuto del file in data
+    with open(args.input, "r", encoding="utf-8") as file: data = json.load(file)
 
+    # Calcolo delle statistiche delle varie sessioni contenute nel file
     sessions = defaultdict(list)
     event_counter = Counter()
-
     for session_obj in data:
         for sid, events in session_obj.items():
             for ev in events:
@@ -101,40 +110,31 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
     avg_len = statistics.mean(lengths) if lengths else 0
     median_len = statistics.median(lengths) if lengths else 0
 
-    os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-    # RAW
-    out_sessions_raw = f"{output_prefix}_sessions_{file_date}_RAW.jsonl"
-    out_stats_raw = f"{output_prefix}_stats_{file_date}_RAW.json"
+    # Creazione file RAW filtrato -> i comandi di ogni sessione NON vengono normalizzati
+    out_sessions_raw = f"{args.output}_sessions_{file_date}_RAW.jsonl"
     with open(out_sessions_raw, "w", encoding="utf-8") as out:
         for sid, cmds in sessions.items():
             out.write(json.dumps({"session": sid, "commands": cmds, "source_file": file_date}) + "\n")
-
-    # 🔥 FILTRAGGIO RAW Aggiunto qui
     filter_short_sessions(out_sessions_raw, min_length=5)
 
-    with open(out_stats_raw, "w", encoding="utf-8") as s:
-        json.dump({
-            "source_file": file_date,
-            "n_sessions": n_sessions,
-            "avg_len": avg_len,
-            "median_len": median_len,
-            "event_types": dict(event_counter)
-        }, s, indent=2)
     print(f"💾 RAW salvato: {out_sessions_raw}")
 
-    # CLEAN
-    out_sessions_clean = f"{output_prefix}_sessions_{file_date}_CLEAN.jsonl"
-    out_stats_clean = f"{output_prefix}_stats_{file_date}_CLEAN.json"
+    # Creazione file CLEAN filtrato -> i comandi di ogni sessione vengono normalizzati
+    out_sessions_clean = f"{args.output}_sessions_{file_date}_CLEAN.jsonl"
     with open(out_sessions_clean, "w", encoding="utf-8") as out:
         for sid, cmds in sessions.items():
-            cleaned = [normalize_command(c) for c in cmds]
+            cleaned = [normalize_command(c) for c in cmds]  # Normalizzazione del comando
             if cleaned:
                 out.write(json.dumps({"session": sid, "commands": cleaned, "source_file": file_date}) + "\n")
-
     filter_short_sessions(out_sessions_clean, min_length=5)
 
-    with open(out_stats_clean, "w", encoding="utf-8") as s:
+    print(f"💾 CLEAN salvato: {out_sessions_clean}")
+    
+    # Creazione file statistiche
+    out_stats = f"{args.output}_stats_{file_date}.json"
+    with open(out_stats, "w", encoding="utf-8") as s:
         json.dump({
             "source_file": file_date,
             "n_sessions": n_sessions,
@@ -142,12 +142,10 @@ def analyze_cowrie_dataset(input_file: str, output_prefix: str):
             "median_len": median_len,
             "event_types": dict(event_counter)
         }, s, indent=2)
-    print(f"💾 CLEAN salvato: {out_sessions_clean}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--output", default="output/cowrie")
+    parser.add_argument("--input", required=True, help="File di input da analizzare")
+    parser.add_argument("--output", default="output/cowrie", help="Radice del file di output generato")
     args = parser.parse_args()
-    analyze_cowrie_dataset(args.input, args.output)
+    analyze_cowrie_dataset(args)

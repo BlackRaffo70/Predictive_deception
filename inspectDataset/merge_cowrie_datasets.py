@@ -7,10 +7,13 @@
 """
 - MODALITÀ:
 
-    Lo script serve a automatizzare l’elaborazione e il merge dei dataset Cowrie (utilizzando al suo interno analyze_and_clean.py)
-    Le funzioni presentate e la loro funzionalità principali sono:
+    Lo script serve per processare più file del dataset Zenodo con record=3687527. Lo script richiama 
+    analyze_and_clean.py per ogni file, esegue il merge dei file CLEAN e RAW prodotti, calcolando anche 
+    le statistiche aggregate. Il file CLEAN contenente il merge dei file viene poi suddiviso in modo randomico
+    in due file: uno contenente il 70% delle righe del file iniziale, l'altro contenente il restante 30%.
+    Queste funzionalità sono espresse attraverso l definizione di due funzioni:
         
-        - merge_all(input_dir: str, output_prefix: str) -> esegue analyze_and_clean.py per ogni file, generando file RAW e CLEAN, esegue il merge di tutti i file RAW e CLEAN creati e aggiorna le statische in base a quest'ultimi
+        - merge_all(input_dir: str, output_prefix: str) -> esegue analyze_and_clean.py per ogni file, generando file RAW e CLEAN, esegue il merge di tutti i file RAW e CLEAN creati e calcola le statistiche aggregate
         - split_jsonl_file(input_path: str, output_train: str, output_test: str, train_ratio: float = 0.7) -> Divide un file .jsonl in due file (train/test) selezionando le righe in modo casuale senza ripetizioni.
 
 - PRE-REQUISITI:
@@ -38,28 +41,23 @@ import statistics
 # -------------------------
 
 def split_jsonl_file(input_path: str, output_train: str, output_test: str, train_ratio: float = 0.7) -> None:
-    # 1) Carica tutte le righe
+    # Caricamento righe e randomizzazione
     with open(input_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    # 2) Shuffle per randomizzare
     random.shuffle(lines)
 
-    # 3) Calcola lo split point
+    # Calcolo divisione del file in base a train_ratio
     split_point = int(len(lines) * train_ratio)
-
     train_lines = lines[:split_point]
     test_lines = lines[split_point:]
 
-    # 4) Scrivi i due file .jsonl
+    # Scrittura dei due file
     with open(output_train, "w", encoding="utf-8") as f_train:
         f_train.writelines(train_lines)
 
     with open(output_test, "w", encoding="utf-8") as f_test:
         f_test.writelines(test_lines)
-
-# Versione modificata della funzione merge_all che usa split_jsonl_file
-# applicata solo al file CLEAN risultante.
 
 def merge_all(input_dir: str, output_prefix: str):
     os.makedirs(os.path.dirname(output_prefix), exist_ok=True)
@@ -73,9 +71,10 @@ def merge_all(input_dir: str, output_prefix: str):
 
     raw_outputs = []
     clean_outputs = []
+    stats_outputs = []
     aggregated_events = {}
 
-    # 1️⃣ Esegui analyze_and_clean.py per ogni file
+    # analyze_and_clean.py per ogni file
     for path in files:
         basename = os.path.basename(path)
         match = re.search(r"(\d{4}-\d{2}-\d{2})", basename)
@@ -96,10 +95,11 @@ def merge_all(input_dir: str, output_prefix: str):
 
         raw_path = f"{out_prefix}_sessions_{date}_RAW.jsonl"
         clean_path = f"{out_prefix}_sessions_{date}_CLEAN.jsonl"
-        stats_path = f"{out_prefix}_stats_{date}_RAW.json"
+        stats_path = f"{out_prefix}_stats_{date}.json"
 
         raw_outputs.append(raw_path)
         clean_outputs.append(clean_path)
+        stats_outputs.append(stats_path)
 
         # aggiunge EVENT_TYPES alle stats globali
         if os.path.exists(stats_path):
@@ -114,7 +114,7 @@ def merge_all(input_dir: str, output_prefix: str):
 
     print("\n🧩 Tutti i file elaborati. Inizio merge finale...\n")
 
-    # 2️⃣ MERGE RAW
+    # Merge di tutti i file RAW
     merged_raw_path = f"{output_prefix}_ALL_RAW.jsonl"
     with open(merged_raw_path, "w", encoding="utf-8") as out:
         for fp in raw_outputs:
@@ -122,7 +122,7 @@ def merge_all(input_dir: str, output_prefix: str):
                 with open(fp, "r", encoding="utf-8") as f:
                     out.write(f.read())
 
-    # 3️⃣ MERGE CLEAN
+    # Merge di tutti i file CLEAN
     merged_clean_path = f"{output_prefix}_ALL_CLEAN.jsonl"
     with open(merged_clean_path, "w", encoding="utf-8") as out:
         for fp in clean_outputs:
@@ -130,7 +130,7 @@ def merge_all(input_dir: str, output_prefix: str):
                 with open(fp, "r", encoding="utf-8") as f:
                     out.write(f.read())
 
-    # 4️⃣ Calcolo statistiche aggregate
+    # Calcolo statistiche aggregate
     raw_lengths = []
     with open(merged_raw_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -158,7 +158,7 @@ def merge_all(input_dir: str, output_prefix: str):
     with open(stats_final_path, "w", encoding="utf-8") as s:
         json.dump(aggregated_stats, s, indent=2)
 
-    # 5️⃣ Split del file CLEAN finale
+    # Split del file CLEAN finale
     train_path = f"{output_prefix}_TRAIN.jsonl"
     test_path = f"{output_prefix}_TEST.jsonl"
 
@@ -166,12 +166,13 @@ def merge_all(input_dir: str, output_prefix: str):
 
     split_jsonl_file(input_path=merged_clean_path, output_train=train_path, output_test=test_path, train_ratio=0.7)
 
-    # 6️⃣ Eliminazione file intermedi
+    # Eliminazione file intermedi (tutti i file CLEAN, RAW e stats dei singoli file del dataset)
     print("\n🧹 Eliminazione dei file intermedi...")
-    for fp in raw_outputs + clean_outputs:
+    for fp in raw_outputs + clean_outputs + stats_outputs:
         if os.path.exists(fp):
             os.remove(fp)
 
+    # Stampe finali
     print("\n🎉 Merge completato con successo!")
     print(f"📦 RAW finale:   {merged_raw_path}")
     print(f"📦 CLEAN finale: {merged_clean_path}")
