@@ -6,13 +6,10 @@
 
 """
 - MODALITÀ:
-
-    - sessioni: valuta su file JSONL con sessioni (sliding window di predizioni)
-    - single: prende un singolo comando (--single-cmd) o file di comandi (--single-file)
-    Per ogni predizione richiede top-K candidate a Ollama e:
-    - stampa Expected (se disponibile) e poi i K candidate uno per riga
-    - confronta permissivamente solo command name + path (ignora flag)
-    - salva risultati in JSONL e summary.json
+    Il file contiene la funzione query_ollama() per mandare il prompt a LLM ollama (è possibile scegliere il modello)
+    Tutte le funzionalità di effettivo prompting sono contenute all'interno del file core_topk.py in quanto 
+    in comune con lo script evaluate_GEMINI_topk.py. I risultati della valutazione della prediction vengono
+    salvati nel file output/ollama_topk_result.jsonl
 
 - PRE-REQUISITI (comandi da eseguire da riga di comando):
 
@@ -84,6 +81,7 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.2, timeout: in
 # -------------------------
 # MAIN SECTION
 # -------------------------
+
 def main():
     ap = argparse.ArgumentParser(description="Evaluate Ollama top-K next-command prediction (sessions or single).")
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")

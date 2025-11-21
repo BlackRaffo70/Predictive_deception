@@ -3,8 +3,29 @@
 # -------------------------
 
 """
-Il file contiene funzioni e array necessari per gli script sviluppati.
-All'inzio di ogni script che utilizza tali array e funzioni, viene eseguito l'import del seguente file. 
+Il file, che funge da libreria per i due file evaluate_ollama_tokp.py e evaluate_GEMINI_tokp.py, 
+contiene la logica fondamentale per l'esecuzione del prompting nei due differenti modelli. All'interno di 
+questa libreria sono presenti i seguenti elementi:
+
+- Array (passati nel prompt al LLM):
+
+    - WHITELIST = lista dei comandi che LLM può utilizzare per condurre l'attacco (alcuni comprendono delle flag)
+    - WHITELISTFILES = lista dei file critici di un sistema Linux, da combinare con i comandi precedenti
+    - WHITELISTFOLDERS = lista delle cartelle critiche di un sistema Linux, da combinare con i comandi precedenti
+
+- Funzioni (utilizzate nei suddetti file):
+
+    - Funzioni di prompting (creano il prompt da mandare al LLM):
+
+        - make_prompt_topk_from_context(context: List[str], k: int) = prompt con contesto. 
+            Al LLM vengono inviati anche i --context-len comandi precedenti al comando di cui deve predirre 
+            il successivo. Genera k comandi che possono essere il successivo
+        - make_prompt_topk_for_single(cmd: str, k: int) = prompt SENZA contesto. 
+            Al LLM viene passato unicamente il comando di cui deve predirre il successivo. Genera k comandi 
+            che possono essere il successivo
+    
+    - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
+        il prompt, a seconda dei parametri specificati da utente, e valuta le prediction effettuate
 """
 # -------------------------
 # IMPORT SECTION
@@ -20,7 +41,7 @@ from tqdm import tqdm
 import utils
 
 # -------------------------
-# WHITELIST = list of commands that can be used by an attacker (some commands includes util flags)
+# WHITELIST
 # -------------------------
 
 WHITELIST = [
@@ -104,7 +125,7 @@ WHITELIST = [
 ]
 
 # -------------------------
-# WHITELISTFILES = Critics files in Linux systems that should be monitored
+# WHITELISTFILES
 # -------------------------
 
 WHITELISTFILES = [
@@ -223,7 +244,7 @@ WHITELISTFILES = [
 ]
 
 # -------------------------
-# WHITELISTFOLDERS = Critics folders in Linux systems that contains files that can be used by an attacker (the name of these files can change and is not unique across all systems, which is why the placeholder <FILE> is used.)
+# WHITELISTFOLDERS
 # -------------------------
 
 WHITELISTFOLDERS = [
@@ -302,7 +323,7 @@ WHITELISTFOLDERS = [
 ]
 
 # -------------------------
-# PROMPTING SECTION -> definition of the two functions (with and whitout context) containing the prompt
+# PROMPTING SECTION
 # -------------------------
 
 def _whitelist_commands() -> str:
@@ -379,6 +400,10 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
         f"Now OUTPUT EXACTLY {k} candidate next commands, one per line. "
     )
     return prompt
+
+# -------------------------
+# PREDICTION EVALUATION
+# -------------------------
 
 def prediction_evaluation(args, llm_type, query_model):
     # validate modes
