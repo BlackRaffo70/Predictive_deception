@@ -6,29 +6,29 @@
 
 ## 🎯 Obiettivo del progetto: *Predictive Deception per Honeypot*
 
-Gli honeypot tradizionali osservano e registrano ciò che l’attaccante fa **solo dopo** che un comando è stato eseguito.  
-Il nostro progetto introduce un cambio di paradigma: usare un **LLM** per trasformare l’honeypot da sistema reattivo a **sistema predittivo**.
+Gli honeypot tradizionali osservano e registrano ciò che l’attaccante fa **solo dopo** l’esecuzione di un comando.  
+Questo progetto introduce un nuovo paradigma: sfruttare un **LLM** per trasformare l’honeypot da sistema passivo a **sistema predittivo**.
 
 ### 🚀 Idea chiave  
-Un modello di linguaggio (es. CodeLlama o Gemini) analizza in tempo reale la sequenza di comandi digitati dall’attaccante e **predice il prossimo comando probabile** prima che venga effettivamente eseguito.
+Un modello di linguaggio (es. CodeLlama, Llama 3, Gemini, Mistral) analizza la sequenza dei comandi dell'attaccante e **predice il prossimo comando** con alta accuratezza, *prima* che venga digitato.
 
 ### 🔐 Perché è rivoluzionario  
-Questa capacità permette all’honeypot di:
+Grazie alla predizione dei comandi, l’honeypot può:
 
 - 🪤 **Preparare deception mirate in anticipo**  
-  Creare file fake, configurazioni fittizie, directory esca o output manipolati **prima** che l’attaccante le richieda.
+  Creare file fake, directory esca, configurazioni fittizie, output manipolati **prima** che l’attaccante tenti di accedervi.
 
 - 🎯 **Attivare trigger intelligenti e invisibili**  
-  Canary tokens, log ad alta granularità, honey-credentials, environment spoofing, tutto avviato *appena* la predizione indica un probabile step successivo.
+  Canary tokens, logging avanzato, honey-credentials, environment spoofing… tutto al momento giusto.
 
 - 🧠 **Aumentare l’ingaggio dell’attaccante**  
-  Simulare sistemi realistici, far credere all’attaccante di essere nel posto giusto e catturare operazioni più avanzate.
+  Il sistema diventa più realistico, più coerente e più credibile, favorendo l’emergere di comportamenti complessi e tecniche avanzate.
 
-- 📈 **Migliorare la qualità dell’intelligence**  
-  Comprendere pattern, automatizzare il profiling di tool e campagne, generare dataset per threat research.
+- 📈 **Potenziare la threat intelligence**  
+  Analisi predittiva delle campagne, riconoscimento di tool automatizzati, profilo comportamentale degli attaccanti e dataset di alto valore.
 
 ### 🧩 In sintesi  
-Il progetto converte l’honeypot in un sistema attivo, capace di **anticipare** il comportamento dell’attaccante e adattarsi, invece di limitarsi a loggare passivamente quello che accade.
+Il progetto trasforma l’honeypot in un sistema **proattivo**, capace non solo di osservare ma di **anticipare**, manipolare e studiare il comportamento dell’attaccante con un livello di controllo mai visto prima.
 
 ---
 
