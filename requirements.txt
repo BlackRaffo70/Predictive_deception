@@ -1,0 +1,30 @@
+# Core utilities
+python-dotenv
+tqdm
+requests
+jsonlines
+pandas
+
+# RAG + Embeddings
+chromadb
+sentence-transformers
+
+# LLM APIs
+openai
+google-genai
+
+# HuggingFace ecosystem
+transformers
+tokenizers
+safetensors
+
+# Training + Fine-tuning
+torch
+accelerate
+datasets
+peft
+bitsandbytes
+
+# Machine Learning utilities
+scikit-learn
+numpy
