@@ -32,7 +32,6 @@ Il progetto converte l’honeypot in un sistema attivo, capace di **anticipare**
 
 ---
 
-## 📦 Contenuto tipico del progetto
 ## 📦 Requirements
 
 Il progetto utilizza LLM, RAG e dataset generati da honeypot Cowrie.  
@@ -68,31 +67,6 @@ Questi sono i requisiti minimi e completi per eseguire preprocessing, predizione
 - `numpy`
 
 ---
-
-### 📁 File `requirements.txt` consigliato
-
-```txt
-python-dotenv
-tqdm
-requests
-jsonlines
-pandas
-chromadb
-sentence-transformers
-openai
-google-genai
-transformers
-tokenizers
-safetensors
-torch
-accelerate
-datasets
-peft
-bitsandbytes
-scikit-learn
-numpy
-
-⸻
 
 ## 📁 Struttura del repository
 ```bash
