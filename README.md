@@ -117,26 +117,23 @@ Predictive_deception/
 
 ⸻
 ---
-
 ## 🧭 Workflow del progetto
 
-## 🧭 Workflow del progetto
+## 🧭 Workflow del progetto (11 script reali)
 
 | Step | Script | Input | Output | Descrizione |
 |------|--------|--------|---------|-------------|
-| 1️⃣ | `download_zenodo.py` | — | `data/*.json` | Scarica automaticamente i file Cowrie dal dataset Zenodo (record 3687527) |
-| 2️⃣ | `inspect_cowrie_json.py` | `data/*.json` | — | Ispezione e validazione della struttura dei file JSON grezzi |
-| 3️⃣ | `analyze_and_clean.py` | `data/*.json` | `output/cowrie_{RAW,CLEAN}.jsonl` | Analizza singoli file, estrae sessioni e normalizza comandi |
-| 4️⃣ | `merge_cowrie_datasets.py` | `data/*.json` | `output/cowrie_ALL_RAW.jsonl` / `output/cowrie_ALL_CLEAN.jsonl` | Unisce tutti i file, produce RAW e CLEAN globali, genera statistiche, split train/test |
-| 5️⃣ | `filter_short_sessions.py` | `output/cowrie_ALL_CLEAN.jsonl` | `output/cowrie_ALL_CLEAN_filtered.jsonl` | Rimuove sessioni troppo brevi (min-len configurabile) |
-| 6️⃣ | `core_topk.py` | — | — | Motore predittivo TOP-K (logica comune a Ollama e Gemini) |
-| 7️⃣ | `core_RAG.py` | — + ChromaDB | — | Motore RAG: embedding, indicizzazione, ricerca vettoriale e few-shot dinamico |
-| 8️⃣ | `evaluate_ollama_topk.py` | `output/cowrie_TEST.jsonl` | `output/ollama_topk_results.jsonl` | Valutazione modelli locali Ollama (modalità TOP-K) |
-| 9️⃣ | `evaluate_ollama_RAG.py` | `output/cowrie_TEST.jsonl` + ChromaDB | `output/ollama_rag_results.jsonl` | Valutazione modelli Ollama con RAG |
-| 🔟 | `evaluate_GEMINI_topk.py` | `output/cowrie_TEST.jsonl` | `output/gemini_topk_results.jsonl` | Valutazione Gemini API (TOP-K) |
-| 1️⃣1️⃣ | `evaluate_GEMINI_RAG.py` | `output/cowrie_TEST.jsonl` + ChromaDB | `output/gemini_rag_results.jsonl` | Valutazione Gemini API con RAG |
-| 1️⃣2️⃣ | `vector_research.py` | qualsiasi JSONL | output debug | Strumento di debug per test embedding, query e qualità del vector search |
-| 1️⃣3️⃣ | `utils.py` | — | — | Funzioni condivise: normalizzazione comandi, pulizia, confronto, parsing |
+| 1️⃣ | `utilities_script/download_zenodo.py` | — | `data/*.json` | Scarica automaticamente i dataset Cowrie da Zenodo (record 3687527) |
+| 2️⃣ | `utilities_script/inspect_cowrie_json.py` | `data/*.json` | — | Ispeziona e valida la struttura dei file JSON grezzi |
+| 3️⃣ | `inspectDataset/analyze_and_clean.py` | `data/*.json` | `*_RAW.jsonl`, `*_CLEAN.jsonl`, stats | Analizza un singolo file Cowrie, normalizza e calcola statistiche |
+| 4️⃣ | `inspectDataset/merge_cowrie_datasets.py` | `data/*.json` | `cowrie_ALL_RAW.jsonl`, `cowrie_ALL_CLEAN.jsonl`, `cowrie_TRAIN.jsonl`, `cowrie_TEST.jsonl` | Unisce più file, genera RAW/CLEAN, crea split train/test |
+| 5️⃣ | `utilities_script/vector_research.py` | qualsiasi JSONL | debugging vari | Tool per esperimenti sugli embedding e ricerca vettoriale |
+| 6️⃣ | `prompting/core_topk.py` | — | — | Motore predittivo TOP-K utilizzato da Ollama e Gemini |
+| 7️⃣ | `prompting/core_RAG.py` | ChromaDB + sessioni | — | Motore RAG: retrieval vettoriale + few-shot dinamico |
+| 8️⃣ | `prompting/evaluate_ollama_topk.py` | JSONL sessioni | `output/ollama_topk_results.jsonl` | Valuta modelli Ollama in modalità TOP-K |
+| 9️⃣ | `prompting/evaluate_ollama_RAG.py` | JSONL + ChromaDB | `output/ollama_rag_results.jsonl` | Valuta Ollama combinato con RAG |
+| 🔟 | `prompting/evaluate_GEMINI_topk.py` | JSONL sessioni | `output/gemini_topk_results.jsonl` | Valuta Gemini API in modalità TOP-K |
+| 1️⃣1️⃣ | `prompting/evaluate_GEMINI_RAG.py` | JSONL + ChromaDB | `output/gemini_rag_results.jsonl` | Valuta Gemini con retrieval-augmented generation |
 ⸻
 
 ## 🚀 **Esempi di utilizzo rapido**
