@@ -3,53 +3,142 @@
 # 🍯 Predictive Deception — LLM-based Command Anticipation in SSH Honeypots
 
 ---
+## 🎯 Obiettivo del progetto: *Predictive Deception per Honeypot*
 
-## 🎯 Obiettivo del progetto
+Gli honeypot tradizionali osservano e registrano ciò che l’attaccante fa **solo dopo** che un comando è stato eseguito.  
+Il nostro progetto introduce un cambio di paradigma: usare un **LLM** per trasformare l’honeypot da sistema reattivo a **sistema predittivo**.
 
-Tradizionalmente, gli honeypot reagiscono ai comandi malevoli **dopo** la loro esecuzione.  
-Questo progetto esplora un approccio innovativo: **Predictive Deception**, dove un **LLM (Large Language Model)** analizza in tempo reale la sequenza dei comandi inviati da un attaccante per **predire il prossimo comando probabile**.
+### 🚀 Idea chiave  
+Un modello di linguaggio (es. CodeLlama o Gemini) analizza in tempo reale la sequenza di comandi digitati dall’attaccante e **predice il prossimo comando probabile** prima che venga effettivamente eseguito.
 
-Questo consente di:
-- 🪤 Pre-posizionare file o artefatti falsi prima che l’attaccante li richieda.  
-- 🧠 Attivare canary tokens o logging avanzato al momento dell’accesso.  
-- 🕵️‍♂️ Aumentare l’engagement dell’attaccante e migliorare la qualità dell’intelligence raccolta.
+### 🔐 Perché è rivoluzionario  
+Questa capacità permette all’honeypot di:
+
+- 🪤 **Preparare deception mirate in anticipo**  
+  Creare file fake, configurazioni fittizie, directory esca o output manipolati **prima** che l’attaccante le richieda.
+
+- 🎯 **Attivare trigger intelligenti e invisibili**  
+  Canary tokens, log ad alta granularità, honey-credentials, environment spoofing, tutto avviato *appena* la predizione indica un probabile step successivo.
+
+- 🧠 **Aumentare l’ingaggio dell’attaccante**  
+  Simulare sistemi realistici, far credere all’attaccante di essere nel posto giusto e catturare operazioni più avanzate.
+
+- 📈 **Migliorare la qualità dell’intelligence**  
+  Comprendere pattern, automatizzare il profiling di tool e campagne, generare dataset per threat research.
+
+### 🧩 In sintesi  
+Il progetto converte l’honeypot in un sistema attivo, capace di **anticipare** il comportamento dell’attaccante e adattarsi, invece di limitarsi a loggare passivamente quello che accade.
+
 
 ---
 
 ## 📦 Contenuto tipico del progetto
+## 📦 Requirements
 
-**requirements.txt:**
-```bash
-requests
+Il progetto utilizza LLM, RAG e dataset generati da honeypot Cowrie.  
+Questi sono i requisiti minimi e completi per eseguire preprocessing, predizione e fine-tuning.
+
+### 🔧 Core Dependencies
+- `python-dotenv`
+- `tqdm`
+- `requests`
+- `jsonlines`
+- `pandas`
+
+### 🧠 RAG & Embeddings
+- `chromadb`
+- `sentence-transformers`
+
+### 🤖 LLM APIs (Gemini / OpenAI / HF)
+- `openai`
+- `google-genai`
+- `transformers`
+- `tokenizers`
+- `safetensors`
+
+### 🧪 Fine-Tuning (CodeLlama / PEFT)
+- `torch`
+- `accelerate`
+- `datasets`
+- `peft`
+- `bitsandbytes`
+
+### 📊 Machine Learning Utilities
+- `scikit-learn`
+- `numpy`
+
+---
+
+### 📁 File `requirements.txt` consigliato
+
+```txt
+python-dotenv
 tqdm
-difflib
-argparse
-```
+requests
+jsonlines
+pandas
+chromadb
+sentence-transformers
+openai
+google-genai
+transformers
+tokenizers
+safetensors
+torch
+accelerate
+datasets
+peft
+bitsandbytes
+scikit-learn
+numpy
 
 ⸻
 
 ## 📁 Struttura del repository
 ```bash
+## 📁 Struttura del repository
+
+```bash
 Predictive_deception/
 │
-├── analyze_cowrie_dataset.py         → Analizza dataset Cowrie e crea sessioni
-├── build_predictive_pairs.py         → Crea coppie (context → next)
-├── evaluate_ollama_topk.py                → Valutazione modelli locali via Ollama
-├── evaluate_LLM_OpenRouter.py        → Valutazione modelli via API OpenRouter
-├── inspect_cowrie_json.py            → Ispeziona dataset grezzo
+├── chroma_storage/                     # Storage locale per ChromaDB (RAG)
 │
-├── data/
-│   └── cowrie_2020-02-29.json        → Dataset originale Cowrie
+├── data/                               # Dataset Cowrie grezzi o scaricati
 │
-├── output/
-│   ├── cowrie_sessions.jsonl         → Sessioni SSH estratte
-│   ├── predictive_pairs.jsonl        → Coppie (context → next)
-│   ├── ollama_results.jsonl          → Risultati modelli locali
-│   ├── results.jsonl                 → Risultati modelli API
-│   └── summary.json                  → Metriche riassuntive
+├── fine_tuning/                        # Script per preparazione e training modelli
+│   └── convert_sessions_to_finetune.py # Converte sessioni SSH in dataset per LLM
 │
+├── google-cloud-sdk/                   # SDK Google (opzionale, per storage/compute)
+│
+├── inspectDataset/                     # Analisi e pulizia dataset Cowrie
+│   ├── analyze_and_clean.py            # Pulizia e normalizzazione eventi
+│   └── merge_cowrie_datasets.py        # Merge file Cowrie multipli
+│
+├── output/                             # File prodotti dal progetto (dataset, risultati)
+│
+├── prompting/                          # Modulo per valutazione predittiva LLM
+│   ├── core_RAG.py                     # Motore RAG locale
+│   ├── core_topk.py                    # Motore top-k senza RAG
+│   ├── evaluate_GEMINI_RAG.py          # Valutazione Gemini con RAG
+│   ├── evaluate_GEMINI_topk.py         # Valutazione Gemini top-k
+│   ├── evaluate_ollama_RAG.py          # Valutazione modelli locali (Ollama) con RAG
+│   ├── evaluate_ollama_topk.py         # Valutazione Ollama top-k
+│   └── utils.py                        # Funzioni condivise (tokenizzazione, parsing, ecc.)
+│
+├── utilities_script/                   # Script di utilità e preprocessing
+│   ├── download_zenodo.py              # Download dataset pubblici da Zenodo
+│   ├── inspect_cowrie_json.py          # Ispezione JSON Cowrie per debugging
+│   └── vector_research.py              # Analisi vettori, embedding e RAG debugging
+│
+├── venv/                               # Ambiente virtuale Python (non va pushato)
+│
+├── .gitignore
+├── google-cloud-cli-darwin-x86_64.tar.gz
+├── README.md
 ├── requirements.txt
-└── README.md
+└── todo.txt
+
+
 ```
 
 ⸻
@@ -59,12 +148,19 @@ Predictive_deception/
 
 | Step | Script | Input | Output | Descrizione |
 |------|--------|--------|---------|-------------|
-| 1️⃣ | `inspect_cowrie_json.py` | `data/cowrie_2020-02-29.json` | — | Ispeziona il file raw per verificare la struttura |
-| 2️⃣ | `analyze_cowrie_dataset.py` | Cowrie JSON | `output/cowrie_sessions.jsonl` | Estrae eventi e comandi per sessione |
-| 3️⃣ | `build_predictive_pairs.py` | `output/cowrie_sessions.jsonl` | `output/predictive_pairs.jsonl` | Genera coppie sliding-window *(context → next)* |
-| 4️⃣ | `evaluate_ollama.py` | `output/predictive_pairs.jsonl` | `output/ollama_results.jsonl` | Valuta modelli locali via Ollama |
-| 5️⃣ | `evaluate_LLM_OpenRouter.py` | `output/predictive_pairs.jsonl` | `output/results.jsonl`, `output/summary.json` | Valuta modelli cloud via API OpenRouter |
-
+| 1️⃣ | `download_zenodo.py` | — | `data/*.json` | Scarica dataset Cowrie da Zenodo (se non presenti) |
+| 2️⃣ | `inspect_cowrie_json.py` | `data/*.json` | — | Ispeziona struttura JSON grezza (debug) |
+| 3️⃣ | `merge_cowrie_datasets.py` | `data/*.json` | `output/merged_cowrie.jsonl` | Unisce più dataset Cowrie in un unico file |
+| 4️⃣ | `analyze_and_clean.py` | `output/merged_cowrie.jsonl` | `output/cowrie_sessions.jsonl` | Estrae sessioni, comandi e normalizza i dati |
+| 5️⃣ | `vector_research.py` | `output/cowrie_TEST.jsonl` | embedding temporanei | Analisi vettori & test embedding (debug RAG) |
+| 6️⃣ | `convert_sessions_to_finetune.py` | `output/cowrie_sessions.jsonl` | `output/predictive_pairs.jsonl` | Crea coppie (context → next) per training LL |
+| 7️⃣ | `core_topk.py` | `output/predictive_pairs.jsonl` | predizioni interne | Motore predittivo baseline top-k |
+| 8️⃣ | `core_RAG.py` | `output/predictive_pairs.jsonl` + ChromaDB | predizioni RAG | Motore predittivo con Retrieval-Augmented |
+| 9️⃣ | `evaluate_ollama_topk.py` | `output/predictive_pairs.jsonl` | `output/ollama_topk_results.jsonl` | Valuta modelli Ollama (solo top-k) |
+| 🔟 | `evaluate_ollama_RAG.py` | `output/predictive_pairs.jsonl` | `output/ollama_rag_results.jsonl` | Valuta Ollama con RAG |
+| 1️⃣1️⃣ | `evaluate_GEMINI_topk.py` | `output/predictive_pairs.jsonl` | `output/gemini_topk_results.jsonl` | Valuta Gemini API (top-k) |
+| 1️⃣2️⃣ | `evaluate_GEMINI_RAG.py` | `output/predictive_pairs.jsonl` + ChromaDB | `output/gemini_rag_results.jsonl` | Valuta Gemini con RAG |
+| 1️⃣3️⃣ | `utils.py` | — | — | Funzioni condivise (tokenizer, parsing, formatting) |
 
 
 ⸻
@@ -75,18 +171,18 @@ Predictive_deception/
 ```bash
 python analyze_cowrie_dataset.py --input data/cowrie_2020-02-29.json --output output/cowrie
 ```
-2️⃣ Generare coppie di predizione (sliding window):
+2️⃣ Merge & Clean dei dataset Cowrie
 ```bash
 python build_predictive_pairs.py --input output/cowrie_sessions.jsonl --output output/predictive_pairs.jsonl --context-len 1
 ```
-3️⃣ Valutare modello locale con Ollama:
+3️⃣ Valutare modello locale con Ollama + RAG(opzionale):
 
 ```bash
 ollama pull mistral:7b-instruct-q4_0
 ollama serve &
 python evaluate_ollama_topk.py --data output/predictive_pairs.jsonl --model mistral:7b-instruct-q4_0 --n 200 --temp 0.1
 ```
-4️⃣ Valutare modello via OpenRouter (API):
+4️⃣ Valutare modello via Gemini (API):
 
 ```bash
 export OPENROUTER_API_KEY="sk-or-xxxxxxxx"
