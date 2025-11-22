@@ -69,8 +69,6 @@ Questi sono i requisiti minimi e completi per eseguire preprocessing, predizione
 ---
 
 ## 📁 Struttura del repository
-```bash
-## 📁 Struttura del repository
 
 ```bash
 Predictive_deception/
@@ -117,9 +115,7 @@ Predictive_deception/
 
 ⸻
 ---
-## 🧭 Workflow del progetto
-
-## 🧭 Workflow del progetto (11 script reali)
+## 🧭 Workflow del progetto 
 
 | Step | Script | Input | Output | Descrizione |
 |------|--------|--------|---------|-------------|
