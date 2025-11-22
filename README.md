@@ -197,21 +197,52 @@ Esempio di file summary.json:
 
 ## 🧠 Note metodologiche
 
-- Prompt **brevi** e in **inglese** migliorano la precisione del modello.  
-- Estrarre **solo la prima riga valida** del comando previsto.  
-- Testare diversi valori di **context length** (es. 1–5 comandi precedenti).  
-- Misurare sia **Exact Match** che **similarità testuale** (Jaccard / SequenceMatcher).  
-- Implementare **rate-limit** e **backoff** per l’uso di API gratuite.  
-- Preferire **Ollama locale** o **GPU universitaria** per batch lunghi di test.  
+- I modelli funzionano meglio con **prompt brevi** e **in inglese**, come quelli costruiti in  
+  `core_topk.py` e `core_RAG.py`.
+- Le predizioni devono sempre essere pulite: estrarre **solo la prima riga valida**, usando le funzioni
+  di parsing e normalizzazione in `utils.py`.
+- Testare diversi valori di **context length** (`--context-len`), soprattutto con:  
+  - `evaluate_ollama_topk.py`  
+  - `evaluate_GEMINI_topk.py`  
+  - `evaluate_ollama_RAG.py`  
+  - `evaluate_GEMINI_RAG.py`
+- Per valutare correttamente i modelli, utilizzare sia:
+  - **Exact Match** (già implementato nel tuo codice)
+  - **Confronto normalizzato** tramite `utils.normalize_for_compare()`
+- Quando si usano API come Gemini, mantenere attivo **rate limit** + **sleep** (già presente nei tuoi script).
+- Preferire modelli locali via **Ollama** (`codellama`, `llama3`, `mistral`, `gemma:2b`) per test massivi,
+  perché gli script `evaluate_ollama_*` sono ottimizzati per esecuzioni lunghe.
+- Usare dataset puliti generati da:
+  - `merge_cowrie_datasets.py`
+  - `analyze_and_clean.py`
+  - `convert_sessions_to_finetune.py`  
+  per ridurre rumore e comandi non utili all’LLM.
+- Per RAG, evitare di reinizializzare il DB: `VectorContextRetriever` verifica già se la collezione esiste.
 
 ---
 
 ## 🔧 Possibili estensioni future
 
-- Fine-tuning su dataset SSH per migliorare la **precisione predittiva**.  
-- Introduzione di **Top-k accuracy** (predizione di più comandi candidati).  
-- Integrazione diretta con sistemi honeypot come **Cowrie** o **CanaryTokens**.  
-- Analisi **semantica** dei pattern di attacco (ricognizione, persistence, privilege escalation, ecc.).  
+- Addestrare un modello locale tramite **fine-tuning** su `convert_sessions_to_finetune.py`
+  (formato già pronto per supervised next-command prediction).
+- Implementare metriche avanzate come:
+  - **Top-k Accuracy**
+  - **Recall@k**
+  - **Confidence Distribution** dei candidati prodotti dal modello
+- Integrare direttamente il motore predittivo (top-k o RAG) dentro Cowrie tramite:
+  - hook sugli eventi `cowrie.command.input`  
+  - API locale che richiama `evaluate_ollama_topk.py`
+- Utilizzare `core_RAG.py` per creare un **Honeypot con memoria storica** degli attacchi,
+  aggiornando dinamicamente ChromaDB con nuove sessioni.
+- Aggiungere una pipeline di:
+  - **Command Semantics Classification** per etichettare automaticamente i pattern:
+    ricognizione, file exfiltration, credential harvesting, persistence, ecc.
+- Costruire dashboard real-time usando i file JSONL prodotti da:
+  - `evaluate_ollama_topk.py`
+  - `evaluate_ollama_RAG.py`
+  - `evaluate_GEMINI_RAG.py`
+- Estendere il dataset includendo altri dataset pubblici (Zenodo 3759652, SIHD, HoneySELK)
+  già compatibili con i tuoi script di merge e normalizzazione.
 
 ---
 
