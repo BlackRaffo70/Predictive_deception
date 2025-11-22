@@ -122,19 +122,20 @@ Predictive_deception/
 
 | Step | Script | Input | Output | Descrizione |
 |------|--------|--------|---------|-------------|
-| 1️⃣ | `download_zenodo.py` | — | `data/*.json` | Scarica dataset Cowrie da Zenodo (se non presenti) |
-| 2️⃣ | `inspect_cowrie_json.py` | `data/*.json` | — | Ispeziona struttura JSON grezza (debug) |
-| 3️⃣ | `merge_cowrie_datasets.py` | `data/*.json` | `output/merged_cowrie.jsonl` | Unisce più dataset Cowrie in un unico file |
-| 4️⃣ | `analyze_and_clean.py` | `output/merged_cowrie.jsonl` | `output/cowrie_sessions.jsonl` | Estrae sessioni, comandi e normalizza i dati |
-| 5️⃣ | `vector_research.py` | `output/cowrie_TEST.jsonl` | embedding temporanei | Analisi vettori & test embedding (debug RAG) |
-| 6️⃣ | `convert_sessions_to_finetune.py` | `output/cowrie_sessions.jsonl` | `output/predictive_pairs.jsonl` | Crea coppie (context → next) per training LL |
-| 7️⃣ | `core_topk.py` | `output/predictive_pairs.jsonl` | predizioni interne | Motore predittivo baseline top-k |
-| 8️⃣ | `core_RAG.py` | `output/predictive_pairs.jsonl` + ChromaDB | predizioni RAG | Motore predittivo con Retrieval-Augmented |
-| 9️⃣ | `evaluate_ollama_topk.py` | `output/predictive_pairs.jsonl` | `output/ollama_topk_results.jsonl` | Valuta modelli Ollama (solo top-k) |
-| 🔟 | `evaluate_ollama_RAG.py` | `output/predictive_pairs.jsonl` | `output/ollama_rag_results.jsonl` | Valuta Ollama con RAG |
-| 1️⃣1️⃣ | `evaluate_GEMINI_topk.py` | `output/predictive_pairs.jsonl` | `output/gemini_topk_results.jsonl` | Valuta Gemini API (top-k) |
-| 1️⃣2️⃣ | `evaluate_GEMINI_RAG.py` | `output/predictive_pairs.jsonl` + ChromaDB | `output/gemini_rag_results.jsonl` | Valuta Gemini con RAG |
-| 1️⃣3️⃣ | `utils.py` | — | — | Funzioni condivise (tokenizer, parsing, formatting) |
+| 1️⃣ | `download_zenodo.py` | — | `data/*.json` | Scarica automaticamente i file Cowrie dal dataset Zenodo (record 3687527) |
+| 2️⃣ | `inspect_cowrie_json.py` | `data/*.json` | — | Ispezione e validazione struttura dei file JSON grezzi |
+| 3️⃣ | `merge_cowrie_datasets.py` | `data/*.json` | `output/cowrie_ALL_RAW.jsonl` / `output/cowrie_ALL_CLEAN.jsonl` | Unisce più file, normalizza, genera statistiche e split train/test |
+| 4️⃣ | `analyze_and_clean.py` | `data/*.json` | `output/cowrie_{RAW,CLEAN}.jsonl` | Pulisce e normalizza singoli file (invocato anche da merge) |
+| 5️⃣ | `filter_short_sessions.py` | `output/cowrie_ALL_CLEAN.jsonl` | versione filtrata | Rimuove sessioni con pochi comandi |
+| 6️⃣ | `convert_sessions_to_finetune.py` | `output/cowrie_ALL_CLEAN.jsonl` | `output/predictive_pairs.jsonl` | Genera coppie (context → next command) per training LLM |
+| 7️⃣ | `core_topk.py` | `predictive_pairs.jsonl` | — | Motore predittivo baseline (TOP-K) usato da Ollama & Gemini |
+| 8️⃣ | `core_RAG.py` | `predictive_pairs.jsonl` + ChromaDB | — | Motore RAG (vector search + few-shot dinamico) |
+| 9️⃣ | `evaluate_ollama_topk.py` | `predictive_pairs.jsonl` | `output/ollama_topk_results.jsonl` | Valutazione modelli locali (Ollama) in modalità TOP-K |
+| 🔟 | `evaluate_ollama_RAG.py` | `predictive_pairs.jsonl` + ChromaDB | `output/ollama_rag_results.jsonl` | Valutazione modelli locali con RAG |
+| 1️⃣1️⃣ | `evaluate_GEMINI_topk.py` | `predictive_pairs.jsonl` | `output/gemini_topk_results.jsonl` | Valutazione modelli Gemini API (TOP-K) |
+| 1️⃣2️⃣ | `evaluate_GEMINI_RAG.py` | `predictive_pairs.jsonl` + ChromaDB | `output/gemini_rag_results.jsonl` | Valutazione Gemini con RAG |
+| 1️⃣3️⃣ | `vector_research.py` | qualsiasi JSONL | vari output debug | Debug embedding / ricerca vettoriale |
+| 1️⃣4️⃣ | `utils.py` | — | — | Funzioni condivise: normalizzazione comandi, parsing, confronto percorsi |
 
 
 ⸻
