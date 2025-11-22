@@ -3,6 +3,7 @@
 # 🍯 Predictive Deception — LLM-based Command Anticipation in SSH Honeypots
 
 ---
+
 ## 🎯 Obiettivo del progetto: *Predictive Deception per Honeypot*
 
 Gli honeypot tradizionali osservano e registrano ciò che l’attaccante fa **solo dopo** che un comando è stato eseguito.  
@@ -28,7 +29,6 @@ Questa capacità permette all’honeypot di:
 
 ### 🧩 In sintesi  
 Il progetto converte l’honeypot in un sistema attivo, capace di **anticipare** il comportamento dell’attaccante e adattarsi, invece di limitarsi a loggare passivamente quello che accade.
-
 
 ---
 
@@ -142,28 +142,35 @@ Predictive_deception/
 
 ## 🚀 **Esempi di utilizzo rapido**
 
-1️⃣ Analisi dataset Cowrie:
+1️⃣ Merge, Clean e Split del dataset Cowrie:
 ```bash
-python analyze_cowrie_dataset.py --input data/cowrie_2020-02-29.json --output output/cowrie
+python inspectDataset/merge_cowrie_datasets.py --input data --output output/cowrie --want clean
 ```
-2️⃣ Merge & Clean dei dataset Cowrie
+2️⃣ Generare coppie di predizione (sliding window) per il fine-tuning:
 ```bash
 python build_predictive_pairs.py --input output/cowrie_sessions.jsonl --output output/predictive_pairs.jsonl --context-len 1
 ```
-3️⃣ Valutare modello locale con Ollama + RAG(opzionale):
-
+3️⃣ Valutare un modello locale con Ollama (solo TOP-K):
 ```bash
 ollama pull mistral:7b-instruct-q4_0
 ollama serve &
-python evaluate_ollama_topk.py --data output/predictive_pairs.jsonl --model mistral:7b-instruct-q4_0 --n 200 --temp 0.1
+python prompting/evaluate_ollama_topk.py --sessions output/cowrie_TEST.jsonl --model mistral:7b-instruct-q4_0 --k 5 --n 200 --context-len 5
 ```
-4️⃣ Valutare modello via Gemini (API):
+4️⃣ Valutare un modello locale con Ollama + RAG (opzionale):
 
 ```bash
-export OPENROUTER_API_KEY="sk-or-xxxxxxxx"
-python evaluate_LLM_OpenRouter.py --input output/predictive_pairs.jsonl --model deepseek/deepseek-r1:free --n 200
+python prompting/evaluate_ollama_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --model codellama --k 5 --rag-k 3 --context-len 5 --n 200
 ```
+5️⃣ Valutare un modello via Gemini (API) – modalità TOP-K:
 
+```bash
+export GOOGLE_API_KEY="AIza-xxxxxxxx"
+python prompting/evaluate_GEMINI_topk.py --sessions output/cowrie_TEST.jsonl --k 5 --n 200 --model gemini-1.5-flash-latest
+```
+6️⃣ Valutare un modello via Gemini (API) + RAG:
+```bash
+python prompting/evaluate_GEMINI_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 200 --model gemini-1.5-flash-latest
+```
 ⸻
 
 ## 📊 Output di esempio
@@ -210,10 +217,20 @@ Esempio di file summary.json:
 
 ## 📚 Riferimenti
 
-- 🐍 **Cowrie Honeypot** → [github.com/cowrie/cowrie](https://github.com/cowrie/cowrie)  
-- 🪤 **Canarytokens** → [canarytokens.org](https://canarytokens.org) / [github.com/thinkst/canarytokens](https://github.com/thinkst/canarytokens)  
-- 💻 **Ollama** → [ollama.com](https://ollama.com) / [github.com/ollama/ollama](https://github.com/ollama/ollama)  
-- 🌐 **OpenRouter API** → [openrouter.ai](https://openrouter.ai)  
+- 🐍 **Cowrie Honeypot** → https://github.com/cowrie/cowrie
+- 🪤 **Canarytokens** → https://canarytokens.org / https://github.com/thinkst/canarytokens
+- 💻 **Ollama** → https://ollama.com / https://github.com/ollama/ollama
+- 🌐 **OpenRouter API** → https://openrouter.ai
+- 🧪 **CyberLab Honeynet Dataset (Zenodo)** → https://zenodo.org/records/3687527
+- 🐼 **PANDAcap SSH Dataset** → https://zenodo.org/records/3759652
+- 🏭 **SIHD – Smart Industrial Honeypot Dataset (IEEE)** → https://ieee-dataport.org/documents/sihd-smart-industrial-honeypot-dataset
+- 🕵️ **HoneySELK Cyber Attacks Dataset (IEEE)** → https://ieee-dataport.org/open-access/dataset-cyber-attacks-honeyselk
+
+### 📘 Key Papers
+- 📄 Nawrocki et al. (2016) — "A Survey on Honeypot Software and Data Analysis"  
+- 🤖 Deng et al. (2023) — "PentestGPT: Evaluating LLMs for Automated Penetration Testing"  
+- 🛡️ Alata et al. — "Lessons Learned from High-Interaction Honeypot Deployment"  
+- 🐦 Whitham — "Canary Tokens and Deception"  
 
 ---
 
