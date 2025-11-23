@@ -86,6 +86,7 @@ def query_gemini(prompt: str, model_name: str, temp: float = 0.0) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Gemini with RAG Vector Search")
     parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
+    parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente db vettoriale")
     parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
     parser.add_argument("--out", default="output/gemini_rag_results.jsonl")
     parser.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile

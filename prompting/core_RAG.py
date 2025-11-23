@@ -3,6 +3,32 @@
 # -------------------------
 
 
+"""
+Il file, che funge da libreria per i due file evaluate_GEMINI_RAG.py e evaluate_ollama_RAG.py, 
+contiene la logica fondamentale per l'esecuzione del prompting, basato su RAG, nei due differenti modelli. All'interno di 
+questa libreria sono presenti i seguenti elementi:
+
+- Classe VectorContextRetriever:
+    Questa rappresenta la classe fondamentale per l'esecuzione dell'approccio RAG (Retrieval-Augmented Generation), per 
+    prevedere i comandi futuri sulla base di sessioni di attacco passate. Le sessioni di attacco (e anche delle finestre
+    di dimensione minore) vengono trasformate in embeddings (vettori di numeri che rappresentano un qualsiasi oggetto 
+    -> oggetti simili, presentano degli embedding simili) e salvate all'interno di un DB vettoriale. Ricercando all'interno
+    del DB gli embedding simili a quelli di una sessione di attacco in corso, vengono restituiti contesti di attacco passati
+    nonchè il successivo comando che era stato inserito. Questo elemento può essere utile per prevedere il successivo 
+    comando inserito da un'attaccante. La classe presenta diverse funzioni:
+    
+    - __init__(self, persist_dir: str, collection_name="honeypot_attacks") -> configurazione del rag DB, con creazione del client e definizione del modello di embedding
+    - index_file(self, jsonl_path: str, context_len: int) -> popolamento del DB vettoriale con la sessione di attacco e finestre scorrevoli di dimensione pari al context-length
+    - retrieve(self, current_context_list: List[str], k: int = 3) -> funzione che, dato un contesto di attacco, restituisce i contesti simili ritrovati all'interno del DB
+
+- Funzioni (utilizzate nei suddetti file):
+    - check_contamination(target_cmd: str, retrieved_examples_text: str)
+    - clean_ollama_candidate(line: str)
+    - make_rag_prompt(context_list: List[str], rag_text: str, k: int)
+    - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
+        il prompt, a seconda dei parametri specificati da utente
+"""
+
 # -------------------------
 # IMPORT SECTION -> imports necessary for the Python script
 # -------------------------
@@ -24,18 +50,19 @@ from chromadb.utils import embedding_functions
 # -------------------------
 
 class VectorContextRetriever:
-    def __init__(self, collection_name="honeypot_attacks", persist_dir="./chroma_storage"):
+    # Inizializzazione RAG DB
+    def __init__(self, persist_dir: str, collection_name="honeypot_attacks"):
         print(f"--- Inizializzazione RAG DB ({persist_dir}) ---")
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        self.emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=self.emb_fn
-        )
 
-    def index_file(self, jsonl_path: str, context_len: int = 5):
+        # Creazione client che gestisce un vector database ChromaDB, database contenente embeddings
+        self.client = chromadb.PersistentClient(path=persist_dir)
+        # Modello di embedding utile per eseguire ricerca all'interno di un db in quanto veloce e leggero -> ogni vettore è costituito da 384 elementi
+        self.emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+        # Creazione della tabella honeypot_attacks (parametro passato) all'interno del DB
+        self.collection = self.client.get_or_create_collection(name=collection_name,embedding_function=self.emb_fn)
+
+    # Indicizzazione sessioni di attacco
+    def index_file(self, jsonl_path: str, context_len: int):
         if not os.path.exists(jsonl_path):
             print(f"[RAG ERROR] File non trovato: {jsonl_path}")
             return
@@ -46,20 +73,29 @@ class VectorContextRetriever:
 
         print(f"[RAG] Indicizzazione vettoriale di {jsonl_path}...")
         documents, metadatas, ids = [], [], []
-        
-        with open(jsonl_path, 'r', encoding='utf-8') as f:
-            for line_idx, line in enumerate(tqdm(f, desc="Indexing")):
+
+        """
+        Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
+        Se la sessione contiene i seguenti comandi: A -> B -> C -> D
+        Indicizziamo:
+          - Vettore("A") -> Target: "B"
+          - Vettore("A B") -> Target: "C"
+          - Vettore("A B C") -> Target: "D"
+        """
+    
+        with open(jsonl_path, 'r', encoding='utf-8') as file:
+            for line_idx, line in enumerate(tqdm(file, desc="Indexing")):
                 if not line.strip(): continue
                 try:
+                    # Estrapolazione dei comandi contenuti all'interno della linea
                     data = json.loads(line)
-                    cmds = data.get("commands", []) or data.get("cmds", [])
-                    if len(cmds) < 2: continue
+                    cmds = data.get("commands", [])
 
-                    for i in range(len(cmds) - 1):
-                        start = max(0, i - context_len + 1)
-                        context_list = cmds[start:i+1]
-                        context_str = " || ".join(context_list)
-                        target_cmd = cmds[i+1]
+                    for i in range(len(cmds) - 1):                  # Si scorre fino al penultimo comando, in quanto l'ultimo è il target della prediction
+                        start = max(0, i - context_len + 1)         # Calcolo inizio della finestra scorrevole
+                        context_list = cmds[start:i+1]              # Lista comandi del contesto
+                        context_str = " || ".join(context_list)     # Storia dei comandi inseriti nella sessione d'attacco    
+                        target_cmd = cmds[i+1]                      # Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
                         
                         documents.append(context_str)
                         metadatas.append({
@@ -69,29 +105,37 @@ class VectorContextRetriever:
                         })
                         ids.append(f"sess_{line_idx}_step_{i}")
                         
+                        # Aggiunta delle info nel DB -> per evitare accessi frequenti al DB
                         if len(documents) >= 5000:
                             self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
                             documents, metadatas, ids = [], [], []
 
-                except Exception:
+                except Exception as exc:
+                    print(f"[RAG ERROR] Errore durante il parsing della riga {line_idx}: {exc}")
                     continue
         
-        if documents:
-            self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+        # Aggiunta delle info rimanenti nel DB -> necessario se non si era arrivato a 5000
+        if documents: self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+        
         print(f"[RAG] Indicizzazione completata. Totale vettori: {self.collection.count()}")
 
+    # Ritrovamento all'interno del DB di attacchi simili
     def retrieve(self, current_context_list: List[str], k: int = 3) -> str:
+        
+        # Sulla base del contesto attuale, viene eseguita una query al DB vettoriale, che restituisce i k più simili
         if not current_context_list: return ""
         query_text = " || ".join(current_context_list)
         results = self.collection.query(query_texts=[query_text], n_results=k)
         
         formatted_examples = ""
-        if not results['ids']: return ""
+        if not results['ids']: return ""    # Se DB vuoto o contiene pochi vettori indicizzati
 
+        # La query restituisce una lista di liste, perciò è necessario estrarre, per ogni campo, la lista contenuta all'interno
         ids = results['ids'][0]
         docs = results['documents'][0]
         metas = results['metadatas'][0]
         
+        # Per ogni sessione di attacco simile, restituisce il contesto e il successivo comando inserito
         for i in range(len(ids)):
             hist_ctx = docs[i].replace(" || ", "\n")
             hist_next = metas[i]['next_command']
@@ -139,10 +183,9 @@ CURRENT SESSION HISTORY:
 PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
 
-
 def prediction_evaluation(args, query_model):
     # 1. Setup RAG
-    rag = VectorContextRetriever(persist_dir="./chroma_storage")
+    rag = VectorContextRetriever(persist_dir=args.persist_dir)
     source_for_index = args.index_file if args.index_file else args.sessions
     rag.index_file(source_for_index, context_len=args.context_len)
 

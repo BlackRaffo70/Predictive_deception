@@ -20,7 +20,14 @@
     Presenza dello script analyze_and_clean.py
         
 - COMANDO PER ESECUZIONE:
-    python inspectDataset/merge_cowrie_datasets.py --want clean
+
+    - Analisi locale semplificativa:
+
+        python inspectDataset/merge_cowrie_datasets.py --want clean
+    
+    - Analisi intero dataset (su dispositivo di archiviazione esterno):
+    
+        python inspectDataset/merge_cowrie_datasets.py --input /media/matteo/BNKRBL/DatasetZenodo  --output /media/matteo/BNKRBL/outputMerge  --want clean
 
     dove le flag sono:
     - input = Cartella di input da analizzare
