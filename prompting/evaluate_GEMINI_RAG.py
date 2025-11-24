@@ -88,7 +88,7 @@ def main():
     parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
     parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente db vettoriale")
     parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
-    parser.add_argument("--out", default="output/gemini_rag_results.jsonl")
+    parser.add_argument("--output", default="output/gemini_rag_results.jsonl")
     parser.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")

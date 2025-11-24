@@ -189,55 +189,52 @@ def prediction_evaluation(args, query_model):
     source_for_index = args.index_file if args.index_file else args.sessions
     rag.index_file(source_for_index, context_len=args.context_len)
 
-    # 2. Caricamento Tasks
+    # Preparazione sessioni di cui eseguire la prediction
     tasks = []
     print("--- Preparazione task di valutazione ---")
     try:
-        with open(args.sessions, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip(): 
-                    continue
-                try:
-                    obj = json.loads(line)
-                    cmds = obj.get("commands", [])
-                    sid = obj.get("session", "unk")
-                    if len(cmds) < 2: 
-                        continue
-                    
-                    for i in range(len(cmds) - 1):
-                        ctx_start = max(0, i - args.context_len + 1)
-                        context = cmds[ctx_start:i+1]
-                        expected = cmds[i+1]
-                        tasks.append({"session": sid, "context": context, "expected": expected})
-                except: 
-                    continue
+        # Lettura delle righe del file contenente le sessioni
+        with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
+        
+        # Se il numero di prediction stabilito dall'utente è 0 = considera tutte le sessioni, altrimenti solo n sessioni random
+        if args.n > 0: random_lines = random.sample(lines, min(args.n, len(lines)))
+
+        for line in (random_lines if random_lines else lines):
+            if not line.strip(): 
+                continue
+            try:
+                obj = json.loads(line)
+                cmds = obj.get("commands", [])
+                sid = obj.get("session", "unk")
+                
+                for i in range(len(cmds) - 1):
+                    ctx_start = max(0, i - args.context_len + 1)
+                    context = cmds[ctx_start:i+1]
+                    expected = cmds[i+1]
+                    tasks.append({"session": sid, "context": context, "expected": expected})
+            except: 
+                continue
     except FileNotFoundError:
         sys.exit(f"Errore: Il file {args.sessions} non esiste.")
 
-    if args.n > 0:
-        random.seed(42)
-        random.shuffle(tasks)
-        tasks = tasks[:args.n]
-
     print(f"Totale task da valutare: {len(tasks)}")
-    if len(tasks) == 0:
-        sys.exit("Nessun task trovato. Controlla il formato del file JSONL.")
+    if len(tasks) == 0: sys.exit("Nessun task trovato. Controlla il formato del file JSONL.")
 
-    # 3. Execution Loop
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    # Prompting al LLM e valutazione delle prediction eseguite
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     results = []
     top1_hits = 0
     topk_hits = 0
-    empty_responses_count = 0  # --- NUOVO CONTATORE ---
+    empty_responses_count = 0
     
     print(f"--- Inizio Valutazione con Modello: {args.model} ---")
     
-    with open(args.out, "w", encoding="utf-8") as fout:
-        for t in tqdm(tasks, desc="Evaluating"):
-            context = t["context"]
-            expected = t["expected"]
+    with open(args.output, "w", encoding="utf-8") as fout:
+        for task in tqdm(tasks, desc="Evaluating"):
+            context = task["context"]
+            expected = task["expected"]
             
-            # A. RAG RETRIEVAL
+            # Ritrovamento all'interno del DB di attacchi simili
             retrieved_text = rag.retrieve(context, k=args.rag_k)
             
             # B. CHECK CONTAMINATION
@@ -283,7 +280,7 @@ def prediction_evaluation(args, query_model):
             
             # F. SALVATAGGIO
             rec = {
-                "session": t["session"],
+                "session": task["session"],
                 "context": context,
                 "expected": expected,
                 "candidates": candidates,
@@ -315,5 +312,5 @@ def prediction_evaluation(args, query_model):
     clean_hits = len([r for r in results if r['hit'] and not r['contamination']])
     print(f"Hits on Contaminated Data (Memory): {contaminated_hits}")
     print(f"Hits on Clean Data (Generalization): {clean_hits}")
-    print(f"Results saved to: {args.out}")
+    print(f"Results saved to: {args.output}")
 
