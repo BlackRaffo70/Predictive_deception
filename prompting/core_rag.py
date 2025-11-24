@@ -22,7 +22,7 @@ questa libreria sono presenti i seguenti elementi:
     - retrieve(self, current_context_list: List[str], k: int = 3) -> funzione che, dato un contesto di attacco, restituisce i contesti simili ritrovati all'interno del DB
 
 - Funzioni (utilizzate nei suddetti file):
-    - check_contamination(target_cmd: str, retrieved_examples_text: str)
+    - hit_db(target_cmd: str, retrieved_examples_text: str) = funzione che serve per verificare se il comando obiettivo della prediction è stato indovinato attraverso la retrieve all'interno del DB vettoriale
     - clean_ollama_candidate(line: str) = funzione utilizzata per "pulire" la risposta di LLM ollama, fortemente indicizzata e verbosa (caratteristica del modello)
     - make_rag_prompt(context_list: List[str], rag_text: str, k: int)
     - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
@@ -149,11 +149,17 @@ class VectorContextRetriever:
 # -------------------------
 # FUNCTION SECTION
 # -------------------------
-    
-def check_contamination(target_cmd: str, retrieved_examples_text: str) -> bool:
+  
+def hit_db(target_cmd: str, retrieved_examples_text: str) -> bool:
     target = target_cmd.strip()
-    if len(target) < 4: return False
-    return target in retrieved_examples_text
+    lines = retrieved_examples_text.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("Attacker Next Move:") and i + 1 < len(lines):
+            next_move = lines[i + 1].strip()
+            if target == next_move:
+                return True
+
+    return False
 
 def clean_ollama_candidate(line: str) -> str:
     line = line.strip()
@@ -206,12 +212,14 @@ def prediction_evaluation(args, query_model):
                 obj = json.loads(line)
                 cmds = obj.get("commands", [])
                 sid = obj.get("session", "unk")
-                
-                for i in range(len(cmds) - 1):
-                    ctx_start = max(0, i - args.context_len + 1)
-                    context = cmds[ctx_start:i+1]
-                    expected = cmds[i+1]
-                    tasks.append({"session": sid, "context": context, "expected": expected})
+
+                # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto
+                indice_expected= random.randint(0, len(cmds) - 1)
+                expected = cmds[indice_expected]
+                ctx_start = max(0, indice_expected - args.context_len)
+                context = cmds[ctx_start:indice_expected]
+
+                tasks.append({"session": sid, "context": context, "expected": expected})
             except: 
                 continue
     except FileNotFoundError:
@@ -235,50 +243,53 @@ def prediction_evaluation(args, query_model):
             expected = task["expected"]
             
             # Ritrovamento all'interno del DB di attacchi simili
-            retrieved_text = rag.retrieve(context, k=args.rag_k)
+            retrieved_text = rag.retrieve(context, args.rag_k)
             
-            # B. CHECK CONTAMINATION
-            is_contaminated = check_contamination(expected, retrieved_text)
+            # Verifico se il comando expected è presente come campo Attacker Next Move all'interno della retrieve del DB vettoriale
+            db_hit = hit_db(expected, retrieved_text)
             
-            # C. QUERY GEMINI / OLLAMA
+            # Query LLM e ottenimento risposta
             prompt = make_rag_prompt(context, retrieved_text, args.k)
             raw_response = query_model(prompt, args.model)
-            
-            # D. PARSING
             candidates = []
-            if raw_response:  # Verifica che non sia None o vuoto
+            if raw_response: 
                 candidates = [clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
             candidates = candidates[:args.k]
-            
-            if not candidates:
+             
+            if not candidates: 
                 empty_responses_count += 1
             
-            # E. EVALUATION
+            # Valutazione della prediction
+            # Per ogni candidato prodotto, normalizzo il contenuto e verifico sia uguale al contenuto del comando expected
             hit = False
             hit_rank = 0
-            
             norm_expected = utils.normalize_for_compare(expected)
-            if norm_expected:
-                exp_name, exp_path = norm_expected[0]
-                
-                for rnk, cand in enumerate(candidates, 1):
-                    norm_cand = utils.normalize_for_compare(cand)
-                    if not norm_cand: 
-                        continue
-                    cand_name, cand_path = norm_cand[0]
-                    
-                    if cand_name == exp_name:
-                        if not exp_path or not cand_path or exp_path in cand_path or cand_path in exp_path:
-                            hit = True
-                            hit_rank = rnk
+            if not norm_expected: 
+                sys.exit(f"Errore: Comando expected non trovato")
+
+            for rnk, cand in enumerate(candidates, 1):
+                norm_cand = utils.normalize_for_compare(cand)
+                if len(norm_cand) == len(norm_expected):
+                    i = 0
+                    while i < len(norm_expected):
+                        exp_name, exp_path = norm_expected[0]
+                        cand_name, cand_path = norm_cand[0]
+                        # Confronto prima il comando e poi l'eventuale path
+                        if (exp_name == cand_name): 
+                            if not exp_path or not cand_path or exp_path in cand_path or cand_path in exp_path:
+                                hit = True
+                                hit_rank = rnk
+                                break
+                        else: 
                             break
+                        i+=1
+                    # Un candidato corrisponde all'expected, esco dal ciclo
+                    if hit:
+                        topk_hits += 1
+                        if hit_rank == 1: top1_hits += 1 
+                        break 
             
-            if hit:
-                topk_hits += 1
-                if hit_rank == 1: 
-                    top1_hits += 1
-            
-            # F. SALVATAGGIO
+            # Scrittura file
             rec = {
                 "session": task["session"],
                 "context": context,
@@ -286,15 +297,14 @@ def prediction_evaluation(args, query_model):
                 "candidates": candidates,
                 "hit": hit,
                 "rank": hit_rank if hit else None,
-                "contamination": is_contaminated
+                "db_hit": db_hit
             }
             fout.write(json.dumps(rec) + "\n")
             fout.flush()
             results.append(rec)
-            
-            time.sleep(0.5)  # Rate limit safety
+            time.sleep(0.5)
 
-    # 4. SUMMARY
+    # Stampa dei risultati
     total = len(results)
     if total == 0: 
         sys.exit("Nessun risultato generato.")
@@ -308,9 +318,9 @@ def prediction_evaluation(args, query_model):
     empty_rate = empty_responses_count / total if total else 0.0
     print(f"Empty Responses: {empty_responses_count}/{total} ({empty_rate:.2%})")
     
-    contaminated_hits = len([r for r in results if r['hit'] and r['contamination']])
-    clean_hits = len([r for r in results if r['hit'] and not r['contamination']])
-    print(f"Hits on Contaminated Data (Memory): {contaminated_hits}")
-    print(f"Hits on Clean Data (Generalization): {clean_hits}")
+    db_hits = len([r for r in results if r['hit'] and r['db_hit']])
+    clean_hits = len([r for r in results if r['hit'] and not r['db_hit']])
+    print(f"Hits influenced by DB: {db_hits}")
+    print(f"Hits NOT influenced by DB: {clean_hits}")
     print(f"Results saved to: {args.output}")
 

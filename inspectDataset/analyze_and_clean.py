@@ -123,7 +123,7 @@ def analyze_cowrie_dataset(args):
         with open(out_sessions_raw, "w", encoding="utf-8") as out:
             for sid, cmds in sessions.items():
                 out.write(json.dumps({"session": sid, "commands": cmds, "source_file": file_date}) + "\n")
-        filter_short_sessions(out_sessions_raw, min_length=5)
+        filter_short_sessions(out_sessions_raw, args.filter)
 
         print(f"💾 RAW salvato: {out_sessions_raw}")
 
@@ -135,7 +135,7 @@ def analyze_cowrie_dataset(args):
                 cleaned = [normalize_command(c) for c in cmds]  # Normalizzazione del comando
                 if cleaned:
                     out.write(json.dumps({"session": sid, "commands": cleaned, "source_file": file_date}) + "\n")
-        filter_short_sessions(out_sessions_clean, min_length=5)
+        filter_short_sessions(out_sessions_clean, args.filter)
 
         print(f"💾 CLEAN salvato: {out_sessions_clean}")
     
@@ -153,6 +153,7 @@ def analyze_cowrie_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="File di input da analizzare")
+    parser.add_argument("--filter", type=int, default=5, help="Numero di sessioni per filtraggio. Le sessioni che presentano meno comandi del numero specificato, vengono filtrate")
     parser.add_argument("--output", default="output/cowrie", help="Radice dei file di output generati")
     parser.add_argument("--want", choices=["raw", "clean", "both"], default="both", help="Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi")
     args = parser.parse_args()

@@ -468,8 +468,8 @@ def prediction_evaluation(args, llm_type, query_model):
         tasks = tasks[:args.n]
 
     print(f"Total prediction tasks: {len(tasks)}")
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    fout = open(args.out, "w", encoding="utf-8")
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    fout = open(args.output, "w", encoding="utf-8")
     results = []
 
     topk_hits = 0
@@ -585,7 +585,7 @@ def prediction_evaluation(args, llm_type, query_model):
     if llm_type == "ollama":
         summary["model"] = args.model
 
-    with open(args.out + ".summary.json", "w", encoding="utf-8") as s:
+    with open(args.output + ".summary.json", "w", encoding="utf-8") as s:
         json.dump(summary, s, indent=2)
 
     print("\n=== SUMMARY ===")
@@ -593,6 +593,6 @@ def prediction_evaluation(args, llm_type, query_model):
     print(f"Non-empty predictions: {non_empty}/{total_done} ({non_empty_rate*100:.2f}%)")
     print(f"Top-{args.k} hits: {topk_hits}/{total_done} -> {topk_rate*100:.2f}%")
     print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
-    print(f"Detailed results: {args.out}")
-    print(f"Summary: {args.out}.summary.json")
+    print(f"Detailed results: {args.output}")
+    print(f"Summary: {args.output}.summary.json")
 

@@ -27,7 +27,7 @@
     
     - Analisi intero dataset (su dispositivo di archiviazione esterno):
     
-        python inspectDataset/merge_cowrie_datasets.py --input /media/matteo/BNKRBL/DatasetZenodo  --output /media/matteo/BNKRBL/outputMerge  --want clean
+        python inspectDataset/merge_cowrie_datasets.py --input /media/matteo/T9/DatasetZenodo  --output /media/matteo/T9/outputMerge/cowrie  --want clean
 
     dove le flag sono:
     - input = Cartella di input da analizzare
@@ -46,6 +46,7 @@ import re
 import json
 import random
 import statistics
+from tqdm import tqdm
 import analyze_and_clean
 
 # -------------------------
@@ -110,7 +111,7 @@ def merge_all(args):
         events = stats.get("event_types", {})
         for k, v in events.items():
             aggregated_events[k] = aggregated_events.get(k, 0) + v
-
+            
     print("\n🧩 Tutti i file elaborati. Inizio merge finale...\n")
     
     raw_lengths = []
@@ -120,10 +121,12 @@ def merge_all(args):
     if args.want == "both" or args.want == "raw":
         merged_raw_path = f"{args.output}_ALL_RAW.jsonl"
         with open(merged_raw_path, "w", encoding="utf-8") as out:
-            for fp in raw_outputs:
-                if os.path.exists(fp):
-                    with open(fp, "r", encoding="utf-8") as f:
-                        out.write(f.read())
+            with tqdm(total=len(raw_outputs), desc="Merge RAW", unit="file", ncols=100) as pbar:
+                for fp in raw_outputs:
+                    if os.path.exists(fp):
+                        with open(fp, "r", encoding="utf-8") as f:
+                            out.write(f.read())
+                    pbar.update(1)
         
         with open(merged_raw_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -134,10 +137,12 @@ def merge_all(args):
     if args.want == "both" or args.want == "clean":
         merged_clean_path = f"{args.output}_ALL_CLEAN.jsonl"
         with open(merged_clean_path, "w", encoding="utf-8") as out:
-            for fp in clean_outputs:
-                if os.path.exists(fp):
-                    with open(fp, "r", encoding="utf-8") as f:
-                        out.write(f.read())
+            with tqdm(total=len(clean_outputs), desc="Merge CLEAN", unit="file", ncols=100) as pbar:
+                for fp in clean_outputs:
+                    if os.path.exists(fp):
+                        with open(fp, "r", encoding="utf-8") as f:
+                            out.write(f.read())
+                    pbar.update(1)
         
         with open(merged_clean_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -197,6 +202,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data", help="Cartella da analizzare")
     parser.add_argument("--output", default="output/cowrie", help="Radice dei file di output generati")
+    parser.add_argument("--filter", type=int, default=5, help="Numero di sessioni per filtraggio. Le sessioni che presentano meno comandi del numero specificato, vengono filtrate")
     parser.add_argument("--want", choices=["raw", "clean", "both"], default="both", help="Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi")
     args = parser.parse_args()
     merge_all(args)

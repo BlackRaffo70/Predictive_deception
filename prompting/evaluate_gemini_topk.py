@@ -25,7 +25,7 @@
 
     - Per quanto riguarda prompting SENZA contesto:
     
-        python prompting/evaluate_GEMINI_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" --model gemma:2b --k 5 --out output/single_results.jsonl
+        python prompting/evaluate_GEMINI_topk.py --single-cmd "cat /proc/cpuinfo | grep name | wc -l" --model gemma:2b --k 5 --output output/single_results.jsonl
 
     dove le varie flag più importanti sono:
     - sessions = (solo CON contesto) flag attraverso cui si passa il file contente le sessioni di attacco (che al loro interno presentano i comandi su cui bisogna eseguire la prediction)
@@ -72,7 +72,7 @@ def main():
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
     ap.add_argument("--single-cmd", help="Single command string to predict next for")
     ap.add_argument("--single-file", help="File with commands (one per line), run prediction for each")
-    ap.add_argument("--out", default="output/ollama_gemini_results.jsonl")
+    ap.add_argument("--output", default=None)
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
     ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
@@ -80,6 +80,8 @@ def main():
     ap.add_argument("--sleep", type=float, default=0.05)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
+    if args.output is None:
+        args.output = f"output/gemini_topk_results_n{args.n}_ctx{args.context-len}_k{args.k}.jsonl"
     core_topk.prediction_evaluation(args, "gemini", query_model=query_gemini)
 
 if __name__ == "__main__":

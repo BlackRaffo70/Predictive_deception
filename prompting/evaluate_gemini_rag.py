@@ -18,8 +18,14 @@
 
 - COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):
     
-    python3 prompting/evaluate_GEMINI_RAG.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
+    - Prova
     
+        python3 prompting/evaluate_gemini_rag.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
+
+    - Intero dataset  
+
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/DB_vettoriale --k 5 --rag-k 3 --context-len 5 --n 10
+
 """
 
 # -------------------------
@@ -30,7 +36,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import core_RAG
+import core_rag
 from google.genai.types import HarmCategory, HarmBlockThreshold
 from google.genai import Client
 
@@ -88,7 +94,7 @@ def main():
     parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
     parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente db vettoriale")
     parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
-    parser.add_argument("--output", default="output/gemini_rag_results.jsonl")
+    parser.add_argument("--output", default=None, help="Nome file output")
     parser.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
@@ -96,8 +102,10 @@ def main():
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
 
     args = parser.parse_args()
-    
-    core_RAG.prediction_evaluation(args, query_model=query_gemini)
+    if args.output is None:
+        args.output = f"output/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+
+    core_rag.prediction_evaluation(args, query_model=query_gemini)
 
 if __name__ == "__main__":
     main()
