@@ -12,6 +12,8 @@
     - Intero dataset su dispositivo esterno:
 
         python utilities_script/download_zenodo.py --dst ext --dst-path /media/matteo/BNKRBL/DatasetZenodo
+
+        python utilities_script/download_zenodo.py --dst ext --dst-path /media/matteo/T9/DatasetZenodo
     
     - Qualche file random in locale
 

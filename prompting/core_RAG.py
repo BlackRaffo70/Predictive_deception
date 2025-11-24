@@ -23,7 +23,7 @@ questa libreria sono presenti i seguenti elementi:
 
 - Funzioni (utilizzate nei suddetti file):
     - check_contamination(target_cmd: str, retrieved_examples_text: str)
-    - clean_ollama_candidate(line: str)
+    - clean_ollama_candidate(line: str) = funzione utilizzata per "pulire" la risposta di LLM ollama, fortemente indicizzata e verbosa (caratteristica del modello)
     - make_rag_prompt(context_list: List[str], rag_text: str, k: int)
     - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
         il prompt, a seconda dei parametri specificati da utente
@@ -120,7 +120,7 @@ class VectorContextRetriever:
         print(f"[RAG] Indicizzazione completata. Totale vettori: {self.collection.count()}")
 
     # Ritrovamento all'interno del DB di attacchi simili
-    def retrieve(self, current_context_list: List[str], k: int = 3) -> str:
+    def retrieve(self, current_context_list: List[str], k: int) -> str:
         
         # Sulla base del contesto attuale, viene eseguita una query al DB vettoriale, che restituisce i k più simili
         if not current_context_list: return ""
@@ -184,7 +184,7 @@ PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
 
 def prediction_evaluation(args, query_model):
-    # 1. Setup RAG
+    # Configurazione del DB vettoriale
     rag = VectorContextRetriever(persist_dir=args.persist_dir)
     source_for_index = args.index_file if args.index_file else args.sessions
     rag.index_file(source_for_index, context_len=args.context_len)
