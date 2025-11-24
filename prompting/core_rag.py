@@ -74,6 +74,9 @@ class VectorContextRetriever:
         print(f"[RAG] Indicizzazione vettoriale di {jsonl_path}...")
         documents, metadatas, ids = [], [], []
 
+        with open(jsonl_path, "r", encoding="utf-8") as file_train: 
+            lines = file_train.readlines()
+
         """
         Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
         Se la sessione contiene i seguenti comandi: A -> B -> C -> D
@@ -83,38 +86,34 @@ class VectorContextRetriever:
           - Vettore("A B C") -> Target: "D"
         """
     
-        with open(jsonl_path, 'r', encoding='utf-8') as file:
-            for line_idx, line in enumerate(tqdm(file, desc="Indexing")):
-                if not line.strip(): continue
-                try:
-                    # Estrapolazione dei comandi contenuti all'interno della linea
-                    data = json.loads(line)
-                    cmds = data.get("commands", [])
+        for line_idx, line in enumerate(tqdm(lines, desc="Indicizzazione DB", unit="line")):
+            if not line.strip(): continue
+            
+            # Estrapolazione dei comandi contenuti all'interno della linea
+            data = json.loads(line)
+            cmds = data.get("commands", [])
+            session_id = str(data.get("session", "unknown"))
 
-                    for i in range(len(cmds) - 1):                  # Si scorre fino al penultimo comando, in quanto l'ultimo è il target della prediction
-                        start = max(0, i - context_len + 1)         # Calcolo inizio della finestra scorrevole
-                        context_list = cmds[start:i+1]              # Lista comandi del contesto
-                        context_str = " || ".join(context_list)     # Storia dei comandi inseriti nella sessione d'attacco    
-                        target_cmd = cmds[i+1]                      # Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
-                        
-                        documents.append(context_str)
-                        metadatas.append({
-                            "next_command": target_cmd,
-                            "session_id": str(data.get("session", "unknown")),
-                            "original_line": line_idx
-                        })
-                        ids.append(f"sess_{line_idx}_step_{i}")
-                        
-                        # Aggiunta delle info nel DB -> per evitare accessi frequenti al DB
-                        if len(documents) >= 5000:
-                            self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
-                            documents, metadatas, ids = [], [], []
+            for i in range(len(cmds) - 1):                  # Si scorre fino al penultimo comando, in quanto l'ultimo è il target della prediction
+                start = max(0, i - context_len + 1)         # Calcolo inizio della finestra scorrevole
+                context_list = cmds[start:i+1]              # Lista comandi del contesto
+                context_str = " || ".join(context_list)     # Storia dei comandi inseriti nella sessione d'attacco    
+                target_cmd = cmds[i+1]                      # Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
+                
+                documents.append(context_str)
+                metadatas.append({
+                    "next_command": target_cmd,
+                    "session_id": session_id,
+                    "original_line": line_idx
+                })
+                ids.append(f"sess_{line_idx}_step_{i}")
+                
+                # Aggiunta delle info nel DB -> per evitare accessi frequenti al DB
+                if len(documents) >= 4000:
+                    self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+                    documents, metadatas, ids = [], [], []
 
-                except Exception as exc:
-                    print(f"[RAG ERROR] Errore durante il parsing della riga {line_idx}: {exc}")
-                    continue
-        
-        # Aggiunta delle info rimanenti nel DB -> necessario se non si era arrivato a 5000
+        # Aggiunta delle info rimanenti nel DB -> necessario se non si era arrivato a 4000
         if documents: self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
         
         print(f"[RAG] Indicizzazione completata. Totale vettori: {self.collection.count()}")
