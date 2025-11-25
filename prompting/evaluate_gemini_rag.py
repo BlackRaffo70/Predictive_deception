@@ -24,7 +24,7 @@
 
     - Intero dataset  
 
-        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/DB_vettoriale --k 5 --rag-k 3 --context-len 5 --n 10
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/DB_vettoriale  --k 5 --rag-k 3 --context-len 5 --n 10
 
 """
 
@@ -99,6 +99,7 @@ def main():
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
     parser.add_argument("--context-len", type=int, default=5, help="Lunghezza contesto")
+    parser.add_argument("--check-path", default="data/DB_checkpoint.txt", help="File per checkpoint indicizzazione db")
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
 
     args = parser.parse_args()

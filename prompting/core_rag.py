@@ -49,6 +49,7 @@ from chromadb.utils import embedding_functions
 # CLASS SECTION
 # -------------------------
 
+
 class VectorContextRetriever:
     # Inizializzazione RAG DB
     def __init__(self, persist_dir: str, collection_name="honeypot_attacks"):
@@ -62,13 +63,9 @@ class VectorContextRetriever:
         self.collection = self.client.get_or_create_collection(name=collection_name,embedding_function=self.emb_fn)
 
     # Indicizzazione sessioni di attacco
-    def index_file(self, jsonl_path: str, context_len: int):
+    def index_file(self, jsonl_path: str, context_len: int, checkpoint_path: str):
         if not os.path.exists(jsonl_path):
             print(f"[RAG ERROR] File non trovato: {jsonl_path}")
-            return
-
-        if self.collection.count() > 0:
-            print(f"[RAG] DB già popolato ({self.collection.count()} vettori). Salto indicizzazione.")
             return
 
         print(f"[RAG] Indicizzazione vettoriale di {jsonl_path}...")
@@ -76,6 +73,22 @@ class VectorContextRetriever:
 
         with open(jsonl_path, "r", encoding="utf-8") as file_train: 
             lines = file_train.readlines()
+
+        # Lettura file checkpoint
+        start_line = 0
+        if os.path.exists(checkpoint_path):
+            with open(checkpoint_path, "r") as file:
+                line = file.read().strip()
+                if line:
+                    parts = line.split(":")
+                    start_line = int(parts[0])
+                    indice_cmd = int(parts[1])
+        
+        if start_line == len(lines):
+            print(f"[RAG] Indicizzazione terminata")
+            return
+        else:
+            print(f"[RAG] Riprendo indicizzazione da riga {start_line}...")
 
         """
         Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
@@ -86,7 +99,9 @@ class VectorContextRetriever:
           - Vettore("A B C") -> Target: "D"
         """
     
-        for line_idx, line in enumerate(tqdm(lines, desc="Indicizzazione DB", unit="line")):
+        for rel_idx, line in enumerate(tqdm(lines[start_line:], desc="Indicizzazione DB", unit="line", initial=start_line,
+        total=len(lines))):
+            line_idx = start_line + rel_idx  # line_idx reale
             if not line.strip(): continue
             
             # Estrapolazione dei comandi contenuti all'interno della linea
@@ -94,11 +109,26 @@ class VectorContextRetriever:
             cmds = data.get("commands", [])
             session_id = str(data.get("session", "unknown"))
 
-            for i in range(len(cmds) - 1):                  # Si scorre fino al penultimo comando, in quanto l'ultimo è il target della prediction
-                start = max(0, i - context_len + 1)         # Calcolo inizio della finestra scorrevole
-                context_list = cmds[start:i+1]              # Lista comandi del contesto
-                context_str = " || ".join(context_list)     # Storia dei comandi inseriti nella sessione d'attacco    
-                target_cmd = cmds[i+1]                      # Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
+            window = []
+            start_cmd_idx = 0
+            if start_line != 0 and line_idx == start_line: 
+                if indice_cmd in range(len(cmds) - 1):
+                    # Prendo al massimo gli ultimi context_len comandi precedenti al comando corrente
+                    start_window_idx = max(0, indice_cmd - context_len)
+                    window = cmds[start_window_idx:indice_cmd]
+                    start_cmd_idx = indice_cmd
+                else: 
+                    continue
+
+            for i in range(start_cmd_idx, len(cmds) - 1):              
+                # Creazione della finestra scorrevole in modo dinamico
+                # Ogni volta il comando viene aggiunto, quando si supera la context_len si elima il comando più vecchio del contesto
+                window.append(cmds[i])          
+                if len(window) > context_len:
+                    window.pop(0)
+
+                context_str = " || ".join(window)
+                target_cmd = cmds[i + 1]            # Comando obiettivo della prediction -> quello successivo (motivo per cui si itera fino a len(cmds)-1)# Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
                 
                 documents.append(context_str)
                 metadatas.append({
@@ -112,10 +142,17 @@ class VectorContextRetriever:
                 if len(documents) >= 4000:
                     self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
                     documents, metadatas, ids = [], [], []
+                    
+                    with open(checkpoint_path, "w") as file:
+                        file.write(f"{line_idx}:{i+1}")
 
         # Aggiunta delle info rimanenti nel DB -> necessario se non si era arrivato a 4000
-        if documents: self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
-        
+        if documents: 
+            self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+            # Scrivo ultima riga -> indicizzazione terminata
+            with open(checkpoint_path, "w") as file:
+                file.write(f"{len(lines)}:0")
+
         print(f"[RAG] Indicizzazione completata. Totale vettori: {self.collection.count()}")
 
     # Ritrovamento all'interno del DB di attacchi simili
@@ -192,7 +229,7 @@ def prediction_evaluation(args, query_model):
     # Configurazione del DB vettoriale
     rag = VectorContextRetriever(persist_dir=args.persist_dir)
     source_for_index = args.index_file if args.index_file else args.sessions
-    rag.index_file(source_for_index, context_len=args.context_len)
+    rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=args.check_path)
 
     # Preparazione sessioni di cui eseguire la prediction
     tasks = []

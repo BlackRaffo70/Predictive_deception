@@ -1,0 +1,118 @@
+
+CHUNK_SIZE_LINES = 1500                   # Righe di ogni chunk
+CHROMA_BATCH_SIZE = 4000                   # Limite massimo batching Chroma è 5000 -> batch più safe
+NUM_WORKERS = max(2, os.cpu_count() - 1)
+
+def process_chunk(args):
+    chunk_id, lines, context_len = args
+
+    documents = []
+    metadatas = []
+    ids = []
+
+    """
+    Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
+    Se la sessione contiene i seguenti comandi: A -> B -> C -> D
+    Indicizziamo:
+        - Vettore("A") -> Target: "B"
+        - Vettore("A B") -> Target: "C"
+        - Vettore("A B C") -> Target: "D"
+    """
+
+    for indice_linea, line in enumerate(lines):
+        if not line.strip():
+            continue
+            
+        data = orjson.loads(line)
+        cmds = data.get("commands", [])
+        session_id = str(data.get("session", "unknown"))
+
+        
+        window = []
+        for i in range(len(cmds) - 1):
+            # Creazione della finestra scorrevole in modo dinamico
+            # Ogni volta il comando viene aggiunto, quando si supera la context_len si elima il comando più vecchio del contesto
+            window.append(cmds[i])          
+            if len(window) > context_len:
+                window.pop(0)
+
+            context_str = " || ".join(window)
+            target_cmd = cmds[i + 1]            # Comando obiettivo della prediction -> quello successivo (motivo per cui si itera fino a len(cmds)-1)
+
+            documents.append(context_str)
+            metadatas.append({
+                "next_command": target_cmd,
+                "session_id": session_id,
+                "chunk": chunk_id,
+                "line": indice_linea
+            })
+            ids.append(f"chunk{chunk_id}_line{indice_linea}_step{i}")
+
+    print("termine elaborazione chunk")
+    return documents, metadatas, ids
+
+
+
+    def index_file(self, jsonl_path: str, context_len: int):
+        if not os.path.exists(jsonl_path):
+            print(f"[RAG ERROR] File non trovato: {jsonl_path}")
+            return
+
+        if self.collection.count() > 0:
+            print(f"[RAG] DB già popolato ({self.collection.count()} vettori). Salto indicizzazione.")
+            return
+
+        print(f"[RAG] Indicizzazione vettoriale di {jsonl_path}...")
+        documents, metadatas, ids = [], [], []
+
+        # Una volta lette tutte le righe del file, si divide in chunk per l'elaborazione parallela
+        with open(jsonl_path, "r", encoding="utf-8") as file_train: 
+            lines = file_train.readlines()
+
+        chunks = []
+        chunk_id = 0
+
+        for i in range(0, len(lines), CHUNK_SIZE_LINES):
+            chunk_lines = lines[i:i + CHUNK_SIZE_LINES]
+            chunks.append((chunk_id, chunk_lines, context_len))
+            chunk_id += 1
+
+        print(f"[RAG] Diviso in {len(chunks)} chunk. Avvio {NUM_WORKERS} worker...")
+
+        pool = Pool(NUM_WORKERS)        
+    
+        # Processamento parallelo
+        pending_docs = []
+        pending_meta = []
+        pending_ids = []
+
+        for documents, metadatas, ids in tqdm(pool.imap_unordered(process_chunk, chunks), total=len(chunks), desc="Processing chunks"):
+
+            pending_docs.extend(documents)
+            pending_meta.extend(metadatas)
+            pending_ids.extend(ids)
+
+            # Batching all'interno del DB e rimozione dalle liste dei dati appena inseriti
+            while len(pending_docs) >= CHROMA_BATCH_SIZE:
+                self.collection.add(
+                    documents=pending_docs[:CHROMA_BATCH_SIZE],
+                    metadatas=pending_meta[:CHROMA_BATCH_SIZE],
+                    ids=pending_ids[:CHROMA_BATCH_SIZE]
+                )
+
+                del pending_docs[:CHROMA_BATCH_SIZE]
+                del pending_meta[:CHROMA_BATCH_SIZE]
+                del pending_ids[:CHROMA_BATCH_SIZE]
+
+        pool.close()
+        pool.join()
+
+        # Batching dei dati residui
+        if pending_docs:
+            self.collection.add(
+                documents=pending_docs,
+                metadatas=pending_meta,
+                ids=pending_ids
+            )
+        
+        print(f"[RAG] Indicizzazione completata. Totale vettori: {self.collection.count()}")
