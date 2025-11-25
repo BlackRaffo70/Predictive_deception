@@ -55,7 +55,7 @@ def normalize_command(cmd: str) -> str:
     cmd = re.sub(r'\s+', ' ', cmd).strip()
     return cmd
 
-def filter_short_sessions(file_path: str, min_length: int = 5):
+def filter_short_sessions(file_path: str, min_length: int):
     filtered_lines = []
 
     # Per ogni riga del file specificato, vedo se il numero di comandi per sessione dell'elemento json è >= min_length

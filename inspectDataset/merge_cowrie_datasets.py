@@ -97,6 +97,7 @@ def merge_all(args):
             input = path
             output = args.output
             want = args.want
+            filter = args.filter
 
         stats = analyze_and_clean.analyze_cowrie_dataset(Arguments)
 
@@ -117,37 +118,45 @@ def merge_all(args):
     raw_lengths = []
     clean_lengths = []
 
-    # Merge di tutti i file RAW
+    # Merge di tutti i file RAW senza duplicati
     if args.want == "both" or args.want == "raw":
         merged_raw_path = f"{args.output}_ALL_RAW.jsonl"
+        # Set delle liste commands già inserite nel file di merge
+        seen_commands_raw = set()
         with open(merged_raw_path, "w", encoding="utf-8") as out:
             with tqdm(total=len(raw_outputs), desc="Merge RAW", unit="file", ncols=100) as pbar:
-                for fp in raw_outputs:
-                    if os.path.exists(fp):
-                        with open(fp, "r", encoding="utf-8") as f:
-                            out.write(f.read())
+                for file in raw_outputs:
+                    if os.path.exists(file):
+                        with open(file, "r", encoding="utf-8") as read_file:
+                            for line in read_file:
+                                obj = json.loads(line)
+                                commands_tuple = tuple(obj.get("commands", []))
+                                if commands_tuple not in seen_commands_raw:
+                                    seen_commands_raw.add(commands_tuple)
+                                    out.write(line)
                     pbar.update(1)
         
-        with open(merged_raw_path, "r", encoding="utf-8") as f:
-            for line in f:
-                obj = json.loads(line)
-                raw_lengths.append(len(obj.get("commands", [])))
+        raw_lengths = [len(commands) for commands in seen_commands_raw]
 
-    # Merge di tutti i file CLEAN
+    # Merge di tutti i file CLEAN senza duplicati
     if args.want == "both" or args.want == "clean":
         merged_clean_path = f"{args.output}_ALL_CLEAN.jsonl"
+        # Set delle liste commands già inserite nel file di merge
+        seen_commands_clean = set()
         with open(merged_clean_path, "w", encoding="utf-8") as out:
             with tqdm(total=len(clean_outputs), desc="Merge CLEAN", unit="file", ncols=100) as pbar:
                 for fp in clean_outputs:
                     if os.path.exists(fp):
                         with open(fp, "r", encoding="utf-8") as f:
-                            out.write(f.read())
+                            for line in f:
+                                obj = json.loads(line)
+                                commands_tuple = tuple(obj.get("commands", []))
+                                if commands_tuple not in seen_commands_clean:
+                                    seen_commands_clean.add(commands_tuple)
+                                    out.write(line)
                     pbar.update(1)
         
-        with open(merged_clean_path, "r", encoding="utf-8") as f:
-            for line in f:
-                obj = json.loads(line)
-                clean_lengths.append(len(obj.get("commands", [])))
+        clean_lengths = [len(commands) for commands in seen_commands_clean]
 
     # Calcolo statistiche aggregate
     aggregated_stats = {
