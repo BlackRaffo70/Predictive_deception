@@ -33,6 +33,7 @@ questa libreria sono presenti i seguenti elementi:
 # IMPORT SECTION -> imports necessary for the Python script
 # -------------------------
 
+import hashlib
 import os
 import sys
 import re
@@ -62,6 +63,19 @@ class VectorContextRetriever:
         # Creazione della tabella honeypot_attacks (parametro passato) all'interno del DB
         self.collection = self.client.get_or_create_collection(name=collection_name,embedding_function=self.emb_fn)
 
+    def load_seen_vectors(self):
+        seen = set()
+        
+        all_docs = self.collection.get(
+            include=["documents", "metadatas"]  # document = context; metadata["next_command"]
+        )
+        
+        for context, meta in zip(all_docs["documents"], all_docs["metadatas"]):
+            key = (context, meta["next_command"])
+            seen.add(key)
+
+        return seen
+
     # Indicizzazione sessioni di attacco
     def index_file(self, jsonl_path: str, context_len: int, checkpoint_path: str):
         if not os.path.exists(jsonl_path):
@@ -70,11 +84,12 @@ class VectorContextRetriever:
 
         print(f"[RAG] Indicizzazione vettoriale di {jsonl_path}...")
         documents, metadatas, ids = [], [], []
+        seen_vectors = set()                    # set di vettori unici inseriti nel DB
 
         with open(jsonl_path, "r", encoding="utf-8") as file_train: 
             lines = file_train.readlines()
 
-        # Lettura file checkpoint
+        # Lettura file checkpoint per continuare indicizzazione
         start_line = 0
         if os.path.exists(checkpoint_path):
             with open(checkpoint_path, "r") as file:
@@ -83,12 +98,16 @@ class VectorContextRetriever:
                     parts = line.split(":")
                     start_line = int(parts[0])
                     indice_cmd = int(parts[1])
-        
-        if start_line == len(lines):
-            print(f"[RAG] Indicizzazione terminata")
-            return
+
+            if start_line == len(lines):
+                print(f"[RAG] Indicizzazione terminata")
+                return
+            else:
+                print(f"[RAG] Riprendo indicizzazione da riga {start_line}...")
+                seen_vectors = self.load_seen_vectors()
+                print(f"[RAG] Caricati {len(seen_vectors)} vettori già indicizzati.")
         else:
-            print(f"[RAG] Riprendo indicizzazione da riga {start_line}...")
+            print(f"[RAG] Indicizzazione terminata")
 
         """
         Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
@@ -130,13 +149,21 @@ class VectorContextRetriever:
                 context_str = " || ".join(window)
                 target_cmd = cmds[i + 1]            # Comando obiettivo della prediction -> quello successivo (motivo per cui si itera fino a len(cmds)-1)# Comando obiettivo della prediction -> quello successivo alla finestra scorrevole
                 
+                # Per il vettore appena creato, vedo se la chiave è stata già indicizzata
+                # Calcolo hash della chiave -> nome del vettore indicizzato
+                key = (context_str, target_cmd)
+                if key in seen_vectors:
+                    continue
+                seen_vectors.add(key)
+                vector_id = hashlib.sha1(f"{context_str}@@{target_cmd}".encode()).hexdigest()
+
                 documents.append(context_str)
                 metadatas.append({
                     "next_command": target_cmd,
                     "session_id": session_id,
                     "original_line": line_idx
                 })
-                ids.append(f"sess_{line_idx}_step_{i}")
+                ids.append(vector_id)
                 
                 # Aggiunta delle info nel DB -> per evitare accessi frequenti al DB
                 if len(documents) >= 4000:
@@ -229,7 +256,8 @@ def prediction_evaluation(args, query_model):
     # Configurazione del DB vettoriale
     rag = VectorContextRetriever(persist_dir=args.persist_dir)
     source_for_index = args.index_file if args.index_file else args.sessions
-    rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=args.check_path)
+    check_path = os.path.join(args.persist_dir, "DB_checkpoint.txt")
+    rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=check_path)
 
     # Preparazione sessioni di cui eseguire la prediction
     tasks = []
@@ -238,8 +266,21 @@ def prediction_evaluation(args, query_model):
         # Lettura delle righe del file contenente le sessioni
         with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
         
-        # Se il numero di prediction stabilito dall'utente è 0 = considera tutte le sessioni, altrimenti solo n sessioni random
-        if args.n > 0: random_lines = random.sample(lines, min(args.n, len(lines)))
+        # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
+        valid_lines = []
+        for line in lines:
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            cmds = data.get("commands", [])
+            if len(cmds) > args.context_len:
+                valid_lines.append(line)
+
+        # Se args.n > 0, seleziona randomicamente solo tra le valide
+        if args.n > 0:
+            random_lines = random.sample(valid_lines, min(args.n, len(valid_lines)))
+        else:
+            random_lines = valid_lines
 
         for line in (random_lines if random_lines else lines):
             if not line.strip(): 
@@ -249,11 +290,10 @@ def prediction_evaluation(args, query_model):
                 cmds = obj.get("commands", [])
                 sid = obj.get("session", "unk")
 
-                # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto
-                indice_expected= random.randint(0, len(cmds) - 1)
+                # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto -> tramite questo codice è garantito che il contesto è sempre costituito da context_len comandi
+                indice_expected = random.randint(args.context_len, len(cmds) - 1)
                 expected = cmds[indice_expected]
-                ctx_start = max(0, indice_expected - args.context_len)
-                context = cmds[ctx_start:indice_expected]
+                context = cmds[indice_expected - args.context_len : indice_expected]
 
                 tasks.append({"session": sid, "context": context, "expected": expected})
             except: 

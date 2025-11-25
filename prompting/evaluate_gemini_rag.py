@@ -99,12 +99,12 @@ def main():
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
     parser.add_argument("--context-len", type=int, default=5, help="Lunghezza contesto")
-    parser.add_argument("--check-path", default="data/DB_checkpoint.txt", help="File per checkpoint indicizzazione db")
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
 
     args = parser.parse_args()
-    if args.output is None:
-        args.output = f"output/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    if args.output is None: args.output = f"output/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
+    args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 
     core_rag.prediction_evaluation(args, query_model=query_gemini)
 

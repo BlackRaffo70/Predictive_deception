@@ -78,9 +78,10 @@ def main():
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
     
     args = parser.parse_args()
-    if args.output is None:
-        args.output = f"output/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
-
+    if args.output is None: args.output = f"output/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
+    args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
+    
     core_rag.prediction_evaluation(args, query_model=query_ollama)
 
 if __name__ == "__main__":
