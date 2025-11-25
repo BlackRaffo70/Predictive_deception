@@ -24,7 +24,7 @@
 
     - Intero dataset  
 
-        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/prova/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/dataset/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
 
 """
 
