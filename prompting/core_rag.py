@@ -106,8 +106,6 @@ class VectorContextRetriever:
                 print(f"[RAG] Riprendo indicizzazione da riga {start_line}...")
                 seen_vectors = self.load_seen_vectors()
                 print(f"[RAG] Caricati {len(seen_vectors)} vettori già indicizzati.")
-        else:
-            print(f"[RAG] Indicizzazione terminata")
 
         """
         Strategia di indicizzazione: oltre tutte le sessioni di attacco, vengono indicizzate anche le "finestre" scorrevoli.
