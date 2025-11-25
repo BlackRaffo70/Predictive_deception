@@ -24,7 +24,7 @@
 
     - Intero dataset  
 
-        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/DB_vettoriale  --k 5 --rag-k 3 --context-len 5 --n 10
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/DB_vettoriale --output output/prova/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
 
 """
 
@@ -102,7 +102,9 @@ def main():
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
 
     args = parser.parse_args()
-    if args.output is None: args.output = f"output/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+
+    if args.output is None: args.output = f"output/prova/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 
