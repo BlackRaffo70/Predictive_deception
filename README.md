@@ -75,37 +75,32 @@ Predictive_deception/
 │
 ├── chroma_storage/                     # Storage locale per ChromaDB (RAG)
 │
-├── data/                               # Dataset Cowrie grezzi o scaricati
+├── data/                               # Dataset Cowrie (JSON originali o scaricati)
 │
-├── fine_tuning/                        # Script per preparazione e training modelli
-│   └── convert_sessions_to_finetune.py # Converte sessioni SSH in dataset per LLM
+├── google-cloud-sdk/                   # (Opzionale) SDK Google Cloud
 │
-├── google-cloud-sdk/                   # SDK Google (opzionale, per storage/compute)
+├── inspectDataset/                     # Preprocessing del dataset Cowrie
+│   ├── analyze_and_clean.py
+│   └── merge_cowrie_datasets.py
 │
-├── inspectDataset/                     # Analisi e pulizia dataset Cowrie
-│   ├── analyze_and_clean.py            # Pulizia e normalizzazione eventi
-│   └── merge_cowrie_datasets.py        # Merge file Cowrie multipli
+├── output/                             # File generati (dataset puliti, risultati)
 │
-├── output/                             # File prodotti dal progetto (dataset, risultati)
+├── prompting/                          # Motore predittivo LLM
+│   ├── core_rag.py                     # RAG + indicizzazione + retrieval
+│   ├── core_topk.py                    # Predizione Top-k senza RAG
+│   ├── evaluate_gemini_rag.py          # Valutazione Gemini + RAG
+│   ├── evaluate_gemini_topk.py         # Valutazione Gemini senza RAG
+│   ├── evaluate_ollama_rag.py          # Valutazione modelli locali + RAG
+│   ├── evaluate_ollama_topk.py         # Valutazione modelli locali senza RAG
+│   └── utils.py                        # Funzioni condivise (parsing, cleaning)
 │
-├── prompting/                          # Modulo per valutazione predittiva LLM
-│   ├── core_RAG.py                     # Motore RAG locale
-│   ├── core_topk.py                    # Motore top-k senza RAG
-│   ├── evaluate_GEMINI_RAG.py          # Valutazione Gemini con RAG
-│   ├── evaluate_GEMINI_topk.py         # Valutazione Gemini top-k
-│   ├── evaluate_ollama_RAG.py          # Valutazione modelli locali (Ollama) con RAG
-│   ├── evaluate_ollama_topk.py         # Valutazione Ollama top-k
-│   └── utils.py                        # Funzioni condivise (tokenizzazione, parsing, ecc.)
+├── utilities_script/                   # Script di supporto
+│   ├── download_zenodo.py              # Download dataset Zenodo
+│   └── inspect_cowrie_json.py          # Ispezione veloce file Cowrie
 │
-├── utilities_script/                   # Script di utilità e preprocessing
-│   ├── download_zenodo.py              # Download dataset pubblici da Zenodo
-│   ├── inspect_cowrie_json.py          # Ispezione JSON Cowrie per debugging
-│   └── vector_research.py              # Analisi vettori, embedding e RAG debugging
-│
-├── venv/                               # Ambiente virtuale Python (non va pushato)
+├── venv/                               # Ambiente virtuale Python (non versione controllata)
 │
 ├── .gitignore
-├── google-cloud-cli-darwin-x86_64.tar.gz
 ├── README.md
 ├── requirements.txt
 └── todo.txt
