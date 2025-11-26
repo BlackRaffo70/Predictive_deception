@@ -4,7 +4,7 @@
 
 
 """
-Il file, che funge da libreria per i due file evaluate_GEMINI_RAG.py e evaluate_ollama_RAG.py, 
+Il file, che funge da libreria per i due file evaluate_gemini_rag.py e evaluate_ollama_RAG.py, 
 contiene la logica fondamentale per l'esecuzione del prompting, basato su RAG, nei due differenti modelli. All'interno di 
 questa libreria sono presenti i seguenti elementi:
 
@@ -17,8 +17,9 @@ questa libreria sono presenti i seguenti elementi:
     nonchè il successivo comando che era stato inserito. Questo elemento può essere utile per prevedere il successivo 
     comando inserito da un'attaccante. La classe presenta diverse funzioni:
     
-    - __init__(self, persist_dir: str, collection_name="honeypot_attacks") -> configurazione del rag DB, con creazione del client e definizione del modello di embedding
-    - index_file(self, jsonl_path: str, context_len: int) -> popolamento del DB vettoriale con la sessione di attacco e finestre scorrevoli di dimensione pari al context-length
+    - __init__(self, persist_dir: str, collection_name="honeypot_attacks") -> configurazione del rag DB (Chroma), con creazione del client e definizione del modello di embedding
+    - load_seen_vectors(self) -> funzione utilitaria utilizzata all'interno della successiva funzione. Nel caso di blocco durante l'indicizzazione, tale funzione serve per caricare all'interno di un set i vettori già indicizzati nel DB (per evitare di indicizzare vettori uguali provenienti da sessioni differenti)
+    - index_file(self, jsonl_path: str, context_len: int) -> indicizzazione del DB vettoriale con finestre scorrevoli della sessione di attacco (caratterizzate da contesto e next_command). Tale funzione è stata progettata per non indicizzare vettori uguali provenienti da sessioni differenti e presenta un sistema di recovery per continuare indicizzazione da dove si era interrotta.
     - retrieve(self, current_context_list: List[str], k: int = 3) -> funzione che, dato un contesto di attacco, restituisce i contesti simili ritrovati all'interno del DB
 
 - Funzioni (utilizzate nei suddetti file):
@@ -100,7 +101,7 @@ class VectorContextRetriever:
                     indice_cmd = int(parts[1])
 
             if start_line == len(lines):
-                print(f"[RAG] Indicizzazione terminata")
+                print(f"[RAG] Indicizzazione gia' eseguita")
                 return
             else:
                 print(f"[RAG] Riprendo indicizzazione da riga {start_line}...")
@@ -257,30 +258,31 @@ def prediction_evaluation(args, query_model):
     check_path = os.path.join(args.persist_dir, "DB_checkpoint.txt")
     rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=check_path)
 
-    # Preparazione sessioni di cui eseguire la prediction
+    # Preparazione task di cui eseguire la prediction
     tasks = []
     print("--- Preparazione task di valutazione ---")
     try:
         # Lettura delle righe del file contenente le sessioni
         with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
         
-        # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
         valid_lines = []
-        for line in lines:
-            if not line.strip():
-                continue
-            data = json.loads(line)
-            cmds = data.get("commands", [])
-            if len(cmds) > args.context_len:
-                valid_lines.append(line)
+        if args.guaranteed_ctx == "yes":
+            # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
+            for line in lines:
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                cmds = data.get("commands", [])
+                if len(cmds) > args.context_len:
+                    valid_lines.append(line)
+        else:
+            valid_lines = lines
 
         # Se args.n > 0, seleziona randomicamente solo tra le valide
         if args.n > 0:
             random_lines = random.sample(valid_lines, min(args.n, len(valid_lines)))
-        else:
-            random_lines = valid_lines
 
-        for line in (random_lines if random_lines else lines):
+        for line in (random_lines if random_lines else valid_lines):
             if not line.strip(): 
                 continue
             try:

@@ -7,7 +7,11 @@
 
 """
 - MODALITÀ:
-
+    Il file contiene la funzione query_gemini() che crea il client per mandare il prompt a LLM gemini 
+    (è possibile scegliere il modello). Tutte le funzionalità per il supporto all'approccio RAG (Retrieval-Augmented Generation)
+    sono contenute all'interno del file core_rag.py in quanto in comune con lo script evaluate_ollama_rag.py. I risultati della 
+    valutazione della prediction vengono salvati nel file output/rag/prova/gemini_rag_result_*.jsonl o 
+    output/rag/dataset/gemini_rag_result_*.jsonl a seconda del numero di file e parametri utilizzati.
 
 - PRE-REQUISITI (comandi da eseguire da riga di comando):
 
@@ -18,13 +22,13 @@
 
 - COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):
     
-    - Prova
+    - Prova su pochi file del dataset (contenuti nella cartella ./data)
     
         python3 prompting/evaluate_gemini_rag.py --sessions output/cowrie_TEST.jsonl --index-file output/cowrie_TRAIN.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
 
-    - Intero dataset  
+    - Intero dataset (contenuto su dispositivo di archiviazione esterna)  
 
-        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/dataset/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/rag/dataset/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
 
 """
 
@@ -99,11 +103,12 @@ def main():
     parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
     parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
     parser.add_argument("--context-len", type=int, default=5, help="Lunghezza contesto")
+    parser.add_argument("--guaranteed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
     parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
 
     args = parser.parse_args()
 
-    if args.output is None: args.output = f"output/prova/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    if args.output is None: args.output = f"output/rag/prova/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
 
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"

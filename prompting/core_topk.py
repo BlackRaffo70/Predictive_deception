@@ -406,7 +406,7 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
 # -------------------------
 
 def prediction_evaluation(args, llm_type, query_model):
-    # validate modes
+    # Validazione input
     mode_sessions = bool(args.sessions)
     mode_single = bool(args.single_cmd or args.single_file)
     if not (mode_sessions or mode_single):
