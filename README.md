@@ -99,7 +99,6 @@ Predictive_deception/
 │
 ├── utilities_script/                   # Script di utilità e preprocessing
 │   ├── download_zenodo.py              # Download dataset pubblici da Zenodo
-│   ├── inspect_cowrie_json.py          # Ispezione JSON Cowrie per debugging
 │   └── vector_research.py              # Analisi vettori, embedding e RAG debugging
 │
 ├── venv/                               # Ambiente virtuale Python (non va pushato)
