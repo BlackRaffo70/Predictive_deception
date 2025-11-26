@@ -76,9 +76,6 @@ Predictive_deception/
 ├── chroma_storage/                     # Storage locale per ChromaDB (RAG)
 │
 ├── data/                               # Dataset Cowrie (JSON originali o scaricati)
-│   ├── cowrie_2020-02-02.json
-│   ├── cowrie_2020-02-13.json
-│   └── cowrie_2020-02-29.json
 │
 ├── google-cloud-sdk/                   # (Opzionale) SDK Google Cloud
 │
