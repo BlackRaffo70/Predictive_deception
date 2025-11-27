@@ -37,7 +37,6 @@ questa libreria sono presenti i seguenti elementi:
 import hashlib
 import os
 import sys
-import re
 import json
 import time
 import random
@@ -251,13 +250,6 @@ def prediction_evaluation(args, llm_type, query_model):
     source_for_index = args.index_file if args.index_file else args.sessions
     check_path = os.path.join(args.persist_dir, "DB_checkpoint.txt")
     rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=check_path)
-
-    # Ping Ollama
-    if llm_type == "ollama":
-        try:
-            _ = query_model("Ping per testare connessione server", args.model, args.ollama_url, temp=0.0, timeout=10)
-        except Exception as e:
-            raise SystemExit(f"Impossibile contattare Ollama: {e}\nEseguire `ollama serve` e assicurarsi della presenza del modello inserito")
 
     # Preparazione task di cui eseguire la prediction
     tasks = []

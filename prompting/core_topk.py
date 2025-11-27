@@ -34,7 +34,6 @@ questa libreria sono presenti i seguenti elementi:
 import json
 import os
 import random
-import re
 import sys
 import time
 from typing import List
@@ -356,7 +355,7 @@ CURRENT SESSION HISTORY:
 PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
 
-def make_prompt_topk_from_context(context: List[str], k: int) -> str:
+def make_prompt_topk_whitelist(context: List[str], k: int) -> str:
     ctx = "\n".join(context[-10:])
     return f"""
 You are an AI simulating a cyber-attacker inside an SSH honeypot.
@@ -365,89 +364,31 @@ Your task is to predict the EXACT next command the attacker will type.
 INSTRUCTIONS:
 1. Analyze the 'CURRENT SESSION' below.
 2. Output the {k} most likely next commands.
-3. Command can ONLY be a combination of commands from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-Commands can be constructed using pipelines (linux command '|') \n"
-        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-3. Output ONLY raw commands, one per line. No explanations.
+3. Command can ONLY be a combination of commands from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.
+4. Commands can be constructed using pipelines (linux command '|')
+5. Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder
+6. Output ONLY raw commands, one per line. No explanations.
 
 CURRENT SESSION HISTORY:
 {ctx}
 
+WHITELIST (containing commands):
+{_whitelist_commands}
+
+WHITELISTFILES (containing critics files that can be used with previous commands):
+{_whitelist_files}
+
+WHITELISTFOLDERS (containing critics folders that can be used with previous commands):
+{_whitelist_folders}
+
 PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
-
-    prompt = (
-        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
-        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
-        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
-
-        "OUTPUT RULES (MUST BE OBEYED):\n"
-        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-        "3) Commands can be constructed using pipelines (linux command '|') \n"
-        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
-        "6) Rank commands from most to least likely (first line = most likely).\n\n"
-
-        "WHITELIST (containing commands):\n"
-        f"{_whitelist_commands}\n\n"
-
-        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
-        f"{_whitelist_files}\n\n"
-
-        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
-        f"{_whitelist_folders}\n\n"
-
-        "CONTEXT (most recent last):\n"
-        f"{ctx}\n\n"
-
-        f"Now OUTPUT EXACTLY {k} candidate next commands"
-    )
-    return prompt
-
-def make_prompt_topk_for_single(cmd: str, k: int) -> str:
-
-    prompt = (
-        "You need to simulate the behavior of an attacker conducting a command-line attack on an SSH honeypot, with the goal of predicting the next command the attacker enters. "
-        "It is important to consider the context (the commands passed below), putting yourself in the shoes of an attacker who has to find a vulnerability"
-        "The environment is isolated and non-operational. FOLLOW ALL RULES EXACTLY.\n\n"
-
-        "OUTPUT RULES (MUST BE OBEYED):\n"
-        f"1) Output EXACTLY {k} commands, one command per line, and NOTHING ELSE.\n"
-        "2) The command can ONLY be costructed in this way: choose commands ONLY from the WHITELIST, combining if necessary with files present in WHITELISTFILES or folders present in WHITELISTFOLDERS. The whitelists are below.\n"
-        "3) Commands can be constructed using pipelines (linux command '|') \n"
-        "4) Commands can present redirections ('>' or '>>') when the target is a whitelisted file or a file inside a whitelisted folder (use <FILE> when appropriate).\n"
-        "5) DO NOT INCLUDE NUMBERING, BULLETS EXLPAINATIONS, OR EXTRA TEXT - ONLY RAW COMMANDS."
-        "6) Rank commands from most to least likely (first line = most likely).\n\n"
-
-        "WHITELIST (containing commands):\n"
-        f"{_whitelist_commands}\n\n"
-
-        "WHITELISTFILES (containing critics files that can be used with previous commands):\n"
-        f"{_whitelist_files}\n\n"
-
-        "WHITELISTFOLDERS (containing critics folders that can be used with previous commands):\n"
-        f"{_whitelist_folders}\n\n"
-
-        "LAST COMMAND EXECUTED (most recent):\n"
-        f"{cmd}\n\n"
-
-        f"Now OUTPUT EXACTLY {k} candidate next commands, one per line. "
-    )
-    return prompt
 
 # -------------------------
 # PREDICTION EVALUATION
 # -------------------------
 
 def prediction_evaluation(args, llm_type, query_model):
-    # Ping Ollama
-    if llm_type == "ollama":
-        try:
-            _ = query_model("Ping per testare connessione server", args.model, args.ollama_url, temp=0.0, timeout=10)
-        except Exception as e:
-            raise SystemExit(f"Impossibile contattare Ollama: {e}\nEseguire `ollama serve` e assicurarsi della presenza del modello inserito")
-
     # Preparazione task solo nel caso in cui args.cmd is None
     print("--- Preparazione task di valutazione ---")
     try:
@@ -479,18 +420,10 @@ def prediction_evaluation(args, llm_type, query_model):
                 cmds = obj.get("commands", [])
                 sid = obj.get("session", "unk")
 
-                if args.single_cmd == "no":
-                    # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto -> tramite questo codice è garantito che il contesto è sempre costituito da context_len comandi
-                    indice_expected = random.randint(args.context_len, len(cmds) - 1)
-                    expected = cmds[indice_expected]
-                    context = cmds[indice_expected - args.context_len : indice_expected]
-                else: 
-                    # In questo caso estraggo un comando per che rappresenta il comando da predirre
-                    # Il contesto è rappresentato unicamente dal comando precedente
-                    indice_expected = random.randint(1, len(cmds) - 1)
-                    expected = cmds[indice_expected]
-                    context = cmds[indice_expected-1]
-
+                # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto -> tramite questo codice è garantito che il contesto è sempre costituito da context_len comandi
+                indice_expected = random.randint(args.context_len, len(cmds) - 1)
+                expected = cmds[indice_expected]
+                context = cmds[indice_expected - args.context_len : indice_expected]
                 tasks.append({"session": sid, "context": context, "expected": expected})
             except: 
                 continue
@@ -507,7 +440,10 @@ def prediction_evaluation(args, llm_type, query_model):
     top1_hits = 0
     empty_responses_count = 0
 
-    print(f"--- Inizio Valutazione con Modello: {args.model} ---")
+    if args.whitelist == "yes":
+        print(f"--- Inizio Valutazione (opzione whitelist) con Modello: {args.model} ---")
+    else:
+        print(f"--- Inizio Valutazione (opzione NON whitelist) con Modello: {args.model} ---")
 
     with open(args.output, "w", encoding="utf-8") as fout:
         for task in tqdm(tasks, desc="Evaluating"):
@@ -515,11 +451,11 @@ def prediction_evaluation(args, llm_type, query_model):
             expected = task["expected"]
             
             # Query LLM e ottenimento risposta
-            if args.single_cmd == "no":
-                prompt = make_prompt_topk_from_context(context,  args.k)
+            if args.whitelist == "no":
+                prompt = make_prompt_topk_without_whitelist(context, args.k)
             else: 
-                prompt = make_prompt_topk_for_single(context[0], args.k)
-
+                prompt = make_prompt_topk_whitelist(context, args.k)
+                
             if llm_type == "gemini":
                 raw_response = query_model(prompt, args.model)
             else:  # ollama

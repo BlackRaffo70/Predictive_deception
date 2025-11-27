@@ -52,7 +52,11 @@ import os
 # GEMINI CALLER SECTION -> creates a client for interacting with Gemini models via the Google API and defines a utility function which sends a prompt to the model and returns the generated text.
 # -------------------------
 
-client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
+api_key = os.getenv("GOOGLE_API_KEY")
+if not api_key:
+    sys.exit("ERRORE CRITICO: La variabile d'ambiente GOOGLE_API_KEY non è impostata.")
+
+client = Client(api_key=api_key)
 
 def query_gemini(prompt: str, model_name: str, temp: float = 0.0):
     try:
@@ -94,7 +98,7 @@ def query_gemini(prompt: str, model_name: str, temp: float = 0.0):
 def main():
     ap = argparse.ArgumentParser(description="Evaluate GEMINI top-K next-command prediction (sessions or single).")
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
-    ap.add_argument("--single-cmd", choices=["yes", "no"], default="no", help="Per abilitare la prediction di un solo comando")
+    ap.add_argument("--whitelist", choices=["yes", "no"], default="yes", help="Con opzione attivata, esegue il prompt con whitelist")
     ap.add_argument("--output", default=None)
     ap.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")

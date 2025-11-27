@@ -76,13 +76,13 @@ def query_ollama(prompt: str, model: str, url: str, temp: float=0.0, timeout: in
 def main():
     ap = argparse.ArgumentParser(description="Evaluate Ollama top-K next-command prediction (sessions or single).")
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
-    ap.add_argument("--single-cmd", choices=["yes", "no"], default="no", help="Per abilitare la prediction di un solo comando")
-    ap.add_argument("--model", default="gemma:2b", help="Ollama model name")
+    ap.add_argument("--whitelist", choices=["yes", "no"], default="yes", help="Con opzione attivata, esegue il prompt con whitelist")
+    ap.add_argument("--model", default="codellama", help="Ollama model name")
     ap.add_argument("--ollama-url", default="http://localhost:11434/api/generate")
     ap.add_argument("--output", default=None)
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
     ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
-    ap.add_argument("--guarateed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
+    ap.add_argument("--guaranteed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
     
     args = ap.parse_args()
