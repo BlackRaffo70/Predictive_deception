@@ -327,7 +327,12 @@ def prediction_evaluation(args, llm_type, query_model):
             
             # Query LLM e ottenimento risposta
             prompt = make_rag_prompt(context, retrieved_text, args.k)
-            raw_response = query_model(prompt, args.model)
+
+            if llm_type == "gemini":
+                raw_response = query_model(prompt, args.model)
+            else:  # ollama
+                raw_response = query_model(prompt, args.model, args.ollama_url)
+
             candidates = []
             if raw_response: 
                 candidates = [utils.clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
@@ -388,8 +393,8 @@ def prediction_evaluation(args, llm_type, query_model):
     
     print("\n=== RAG EVALUATION SUMMARY ===")
     print(f"Model: {args.model}")
-    print(f"Total Tasks: {total}")
-    print(f"Top-1 Accuracy: {top1_hits/total:.2%}")
+    print(f"Total tasks: {total}")
+    print(f"Top-1 accuracy: {top1_hits/total:.2%}")
     print(f"Top-{args.k} Accuracy: {topk_hits/total:.2%}")
     
     empty_rate = empty_responses_count / total if total else 0.0

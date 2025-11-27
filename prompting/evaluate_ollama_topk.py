@@ -77,7 +77,6 @@ def main():
     ap = argparse.ArgumentParser(description="Evaluate Ollama top-K next-command prediction (sessions or single).")
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
     ap.add_argument("--single-cmd", choices=["yes", "no"], default="no", help="Per abilitare la prediction di un solo comando")
-    ap.add_argument("--cmd", default=None, help="Single command string to predict next for")
     ap.add_argument("--model", default="gemma:2b", help="Ollama model name")
     ap.add_argument("--ollama-url", default="http://localhost:11434/api/generate")
     ap.add_argument("--output", default=None)
@@ -85,12 +84,10 @@ def main():
     ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
     ap.add_argument("--guarateed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
-    ap.add_argument("--temp", type=float, default=0.15)
-    ap.add_argument("--sleep", type=float, default=0.05)
-    ap.add_argument("--seed", type=int, default=42)
+    
     args = ap.parse_args()
     if args.output is None:
-        args.output = f"output/topk/gemini_topk_results_n{args.n}_ctx{args.context-len}_k{args.k}.jsonl"
+        args.output = f"output/topk/ollama_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     core_topk.prediction_evaluation(args, "ollama", query_model=query_ollama)
 
 

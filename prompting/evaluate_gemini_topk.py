@@ -21,7 +21,7 @@
 
     - Per quanto riguarda prompting con contesto, a seconda del modello:
 
-        python prompting/evaluate_GEMINI_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10
+        python prompting/evaluate_gemini_topk.py --sessions output/cowrie_ALL_CLEAN.jsonl --k 5 --n 25 --context-len 10
 
     - Per quanto riguarda prompting SENZA contesto:
     
@@ -42,7 +42,9 @@
 
 from __future__ import annotations
 import argparse, os
+import sys
 import core_topk
+from google.genai.types import HarmCategory, HarmBlockThreshold
 from google.genai import Client
 import os
 
@@ -52,16 +54,38 @@ import os
 
 client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-def query_gemini(prompt: str, temp: float = 0.0):
+def query_gemini(prompt: str, model_name: str, temp: float = 0.0):
     try:
+        #Visto che stiamo simulando degli attacchi, è necessario disattivare i blocchi di sicurezza
+        safety_config = [
+            {"category": HarmCategory.HARM_CATEGORY_HATE_SPEECH, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_HARASSMENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+        ]
+
         response = client.models.generate_content(
-            model="gemini-flash-latest",
+            model=model_name,
             contents=prompt,
-            config={"temperature": temp}
+            config={
+                "temperature": temp, 
+                "top_p": 0.1,
+                "max_output_tokens": 1024,
+                "safety_settings": safety_config # APPLICHIAMO I FILTRI PERMISSIVI
+            }
         )
-        return response.text
-    except Exception as e:
-        return f"[GEMINI ERROR] {e}"
+        # Controllo difensivo: se il modello restituisce None o non ha testo
+        if not response or not response.text: return "" 
+        else: return response.text
+
+    except Exception as exc:
+        err_str = str(exc)
+        # Gestione dell'errore in caso di error 404
+        if "404" in err_str: 
+            print(f"\n[ERRORE FATALE] Modello '{model_name}' non trovato.")
+            sys.exit(1)
+        # Restituzione di una stringa vuota per non rompere il loop
+        return ""
     
 # -------------------------
 # MAIN SECTION
@@ -70,19 +94,17 @@ def query_gemini(prompt: str, temp: float = 0.0):
 def main():
     ap = argparse.ArgumentParser(description="Evaluate GEMINI top-K next-command prediction (sessions or single).")
     ap.add_argument("--sessions", help="JSONL sessions file: one JSON per line with fields: session, commands (list)")
-    ap.add_argument("--single-cmd", help="Single command string to predict next for")
-    ap.add_argument("--single-file", help="File with commands (one per line), run prediction for each")
+    ap.add_argument("--single-cmd", choices=["yes", "no"], default="no", help="Per abilitare la prediction di un solo comando")
     ap.add_argument("--output", default=None)
+    ap.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
     ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
-    ap.add_argument("--guarateed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
+    ap.add_argument("--guaranteed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
-    ap.add_argument("--temp", type=float, default=0.15)
-    ap.add_argument("--sleep", type=float, default=0.05)
-    ap.add_argument("--seed", type=int, default=42)
+    
     args = ap.parse_args()
     if args.output is None:
-        args.output = f"output/gemini_topk_results_n{args.n}_ctx{args.context-len}_k{args.k}.jsonl"
+        args.output = f"output/topk/gemini_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     core_topk.prediction_evaluation(args, "gemini", query_model=query_gemini)
 
 if __name__ == "__main__":
