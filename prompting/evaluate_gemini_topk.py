@@ -52,7 +52,7 @@ import os
 
 client = Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-def query_gemini(prompt: str, temp: float = 0.2):
+def query_gemini(prompt: str, temp: float = 0.0):
     try:
         response = client.models.generate_content(
             model="gemini-flash-latest",
@@ -75,6 +75,7 @@ def main():
     ap.add_argument("--output", default=None)
     ap.add_argument("--k", type=int, default=5, help="Top-K candidates")
     ap.add_argument("--context-len", type=int, default=3, help="Context length when using sessions")
+    ap.add_argument("--guarateed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
     ap.add_argument("--n", type=int, default=0, help="Max steps to evaluate (0 = all)")
     ap.add_argument("--temp", type=float, default=0.15)
     ap.add_argument("--sleep", type=float, default=0.05)

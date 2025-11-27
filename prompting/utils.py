@@ -115,3 +115,9 @@ def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
         results.append((name, path))
 
     return results
+
+def clean_ollama_candidate(line: str) -> str:
+    line = line.strip()
+    line = re.sub(r"^\d+\.\s*", "", line)   # rimuove "1. "
+    line = line.strip("`")                  # rimuove backticks
+    return line.strip()

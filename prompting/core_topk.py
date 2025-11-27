@@ -35,6 +35,7 @@ import json
 import os
 import random
 import re
+import sys
 import time
 from typing import List
 from tqdm import tqdm
@@ -406,193 +407,173 @@ def make_prompt_topk_for_single(cmd: str, k: int) -> str:
 # -------------------------
 
 def prediction_evaluation(args, llm_type, query_model):
-    # Validazione input
-    mode_sessions = bool(args.sessions)
-    mode_single = bool(args.single_cmd or args.single_file)
-    if not (mode_sessions or mode_single):
-        raise SystemExit("Provide --sessions OR --single-cmd OR --single-file")
-
-    # quick ping for Ollama
+    # Ping Ollama
     if llm_type == "ollama":
         try:
-            _ = query_model("Ping. Reply 'ok' only.", args.model, args.ollama_url, temp=0.0, timeout=10)
+            _ = query_model("Ping per testare connessione server", args.model, args.ollama_url, temp=0.0, timeout=10)
         except Exception as e:
-            raise SystemExit(f"Unable to contact Ollama: {e}\nStart `ollama serve` and ensure model is pulled.")
+            raise SystemExit(f"Impossibile contattare Ollama: {e}\nEseguire `ollama serve` e assicurarsi della presenza del modello inserito")
 
-    # build tasks
-    tasks = []
-    if mode_sessions:
-        if not os.path.exists(args.sessions):
-            raise SystemExit(f"Sessions file not found: {args.sessions}")
-        sessions = []
-        with open(args.sessions, "r", encoding="utf-8") as f:
-            for ln in f:
-                ln = ln.strip()
-                if not ln:
-                    continue
-                try:
-                    obj = json.loads(ln)
-                except:
-                    continue
-                sid = obj.get("session") or obj.get("session_id") or obj.get("id")
-                cmds = obj.get("commands") or obj.get("cmds") or obj.get("commands_list")
-                if not sid or not cmds or len(cmds) < 2:
-                    continue
-                sessions.append({"session": sid, "commands": cmds})
-        for sess in sessions:
-            cmds = sess["commands"]
-            for i in range(len(cmds) - 1):
-                start = max(0, i - (args.context_len - 1))
-                context = cmds[start:i+1]
-                expected = cmds[i+1]
-                tasks.append({"session": sess["session"], "index": i, "context": context, "expected": expected})
+    # Preparazione task solo nel caso in cui args.cmd is None
+    print("--- Preparazione task di valutazione ---")
+    if args.cmd is None:
+        try:
+            with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
+            
+            valid_lines = []
+            if args.guaranteed_ctx == "yes":
+                # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    data = json.loads(line)
+                    cmds = data.get("commands", [])
+                    if len(cmds) > args.context_len:
+                        valid_lines.append(line)
+            else:
+                valid_lines = lines
+
+            # Se args.n > 0, seleziona randomicamente solo tra le valide
+            if args.n > 0:
+                random_lines = random.sample(valid_lines, min(args.n, len(valid_lines)))
+
+        except FileNotFoundError:
+            sys.exit(f"Errore: Il file {args.sessions} non esiste.")
+
+        tasks = []
+        for line in (random_lines if random_lines else valid_lines):
+            if not line.strip(): 
+                continue
+            try:
+                obj = json.loads(line)
+                cmds = obj.get("commands", [])
+                sid = obj.get("session", "unk")
+
+                if args.single_cmd == "no":
+                    # Dalla sessione random, si estra un comando random che funge da expected, i precedenti da contesto -> tramite questo codice è garantito che il contesto è sempre costituito da context_len comandi
+                    indice_expected = random.randint(args.context_len, len(cmds) - 1)
+                    expected = cmds[indice_expected]
+                    context = cmds[indice_expected - args.context_len : indice_expected]
+                else: 
+                    # In questo caso estraggo un comando per che rappresenta il comando da predirre
+                    # Il contesto è rappresentato unicamente dal comando precedente
+                    indice_expected = random.randint(1, len(cmds) - 1)
+                    expected = cmds[indice_expected]
+                    context = cmds[indice_expected-1]
+
+                tasks.append({"session": sid, "context": context, "expected": expected})
+            except: 
+                continue
+    
+        print(f"Totale task da valutare: {len(tasks)}")
+        if len(tasks) == 0: sys.exit("Nessun task trovato. Controlla il formato del file JSONL.")
     else:
-        single_cmds = []
-        if args.single_cmd:
-            single_cmds.append(args.single_cmd.strip())
-        if args.single_file:
-            if not os.path.exists(args.single_file):
-                raise SystemExit(f"Single-file not found: {args.single_file}")
-            with open(args.single_file, "r", encoding="utf-8") as f:
-                for ln in f:
-                    ln = ln.strip()
-                    if ln:
-                        single_cmds.append(ln)
-        for cmd in single_cmds:
-            tasks.append({"session": "single", "index": 0, "context": [cmd], "expected": None})
-
-    # shuffle if requested
-    if args.n and args.n > 0:
-        random.seed(args.seed)
-        random.shuffle(tasks)
-        tasks = tasks[:args.n]
-
-    print(f"Total prediction tasks: {len(tasks)}")
+        print(f"Invio al LLM prompt per la prediction del comando {args.cmd}")
+    
+    # Prompting LLM e valutazione delle prediction
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-    fout = open(args.output, "w", encoding="utf-8")
     results = []
-
     topk_hits = 0
     top1_hits = 0
-    non_empty = 0
+    empty_responses_count = 0
 
-    for t in tqdm(tasks, desc="Predicting", unit="step"):
-        context = t["context"]
-        expected = t.get("expected")
-        # build prompt
-        if len(context) == 1:
-            prompt = make_prompt_topk_for_single(context[0], args.k)
-        else:
-            prompt = make_prompt_topk_from_context(context, args.k)
+    if args.cmd is None:
+        print(f"--- Inizio Valutazione con Modello: {args.model} ---")
 
-        # query LLM
-        try:
-            if llm_type == "gemini":
-                raw = query_model(prompt, temp=args.temp)
-            else:  # ollama
-                raw = query_model(prompt, args.model, args.ollama_url, temp=args.temp, timeout=120)
-            err = None
-        except Exception as e:
-            raw = ""
-            err = str(e)
+        with open(args.output, "w", encoding="utf-8") as fout:
+            for task in tqdm(tasks, desc="Evaluating"):
+                context = task["context"]
+                expected = task["expected"]
+                
+                # Query LLM e ottenimento risposta
+                if args.single_cmd == "no":
+                    prompt = make_prompt_topk_from_context(context,  args.k)
+                else: 
+                    prompt = make_prompt_topk_for_single(context[0], args.k)
 
-        # parse response
+                if llm_type == "gemini":
+                    raw_response = query_model(prompt, temp=args.temp)
+                else:  # ollama
+                    raw_response = query_model(prompt, args.model, args.ollama_url, temp=args.temp, timeout=120)
+
+                candidates = []
+                if raw_response: 
+                    candidates = [utils.clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
+                candidates = candidates[:args.k]
+            
+                if not candidates: 
+                    empty_responses_count += 1
+                
+                # Valutazione della prediction
+                # Per ogni candidato prodotto, normalizzo il contenuto e verifico sia uguale al contenuto del comando expected
+                hit = False
+                hit_rank = 0
+                norm_expected = utils.normalize_for_compare(expected)
+                if not norm_expected: 
+                    sys.exit(f"Errore: Comando expected non trovato")
+
+                for rnk, cand in enumerate(candidates, 1):
+                    norm_cand = utils.normalize_for_compare(cand)
+                    if len(norm_cand) == len(norm_expected):
+                        i = 0
+                        while i < len(norm_expected):
+                            exp_name, exp_path = norm_expected[0]
+                            cand_name, cand_path = norm_cand[0]
+                            # Confronto prima il comando e poi l'eventuale path
+                            if (exp_name == cand_name): 
+                                if not exp_path or not cand_path or exp_path in cand_path or cand_path in exp_path:
+                                    hit = True
+                                    hit_rank = rnk
+                                    break
+                            else: 
+                                break
+                            i+=1
+                        # Un candidato corrisponde all'expected, esco dal ciclo
+                        if hit:
+                            topk_hits += 1
+                            if hit_rank == 1: top1_hits += 1 
+                            break 
+                
+                # Scrittura file
+                rec = {
+                    "session": task["session"],
+                    "context": context,
+                    "expected": expected,
+                    "candidates": candidates,
+                    "hit": hit,
+                    "rank": hit_rank if hit else None,
+                }
+                fout.write(json.dumps(rec) + "\n")
+                fout.flush()
+                fout.close()
+                results.append(rec)
+                time.sleep(0.5)
+
+        total_done = len(results)
+        topk_rate = topk_hits / total_done if total_done else 0.0
+        top1_rate = top1_hits / total_done if total_done else 0.0
+        empty_rate = empty_responses_count / total_done if total_done else 0.0
+
+        print("\n=== SUMMARY ===")
+        print(f"Total tasks: {total_done}")
+        print(f"Empty predictions: {empty_responses_count}/{total_done} ({empty_rate*100:.2f}%)")
+        print(f"Top-{args.k} hits: {topk_hits}/{total_done} -> {topk_rate*100:.2f}%")
+        print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
+        print(f"Results saved to: {args.output}")
+
+    else:   # Prediction singola
+        prompt = make_prompt_topk_for_single(args.cmd, args.k)
+
         if llm_type == "gemini":
-            candidates = raw.splitlines()[:args.k]
-            candidates_clean = [c.strip() for c in candidates if c.strip()]
-        else:
-            candidates = utils.clean_llm_response(raw, args.k)
-            candidates_clean = [re.sub(r'^```|```$|`', '', c).strip() for c in candidates]
-
-        # print
-        print("\n---")
-        print("Context (last commands):")
-        for c in context:
-            print("  " + c)
-        if expected:
-            print("Expected:", expected)
-        else:
-            print("Expected: (not provided)")
-        print(f"Top-{args.k} candidates:")
-        if not candidates_clean:
-            if raw:
-                print(" (no parsed lines, raw response below)\n")
-                print(raw)
-            else:
-                print(" (no response)")
-        else:
-            for i, c in enumerate(candidates_clean, start=1):
-                print(f" {i}. {c}")
-
-        # permissive comparison
-        hit = False
-        if expected and candidates_clean:
-            exp_keys = utils.normalize_for_compare(expected)
-            if exp_keys:
-                exp_cmd = exp_keys[0]
-                for rnk, cand in enumerate(candidates_clean, start=1):
-                    cand_keys = utils.normalize_for_compare(cand)
-                    if not cand_keys:
-                        continue
-                    cand_cmd = cand_keys[0]
-                    name_match = (cand_cmd[0] == exp_cmd[0] and cand_cmd[0] != "")
-                    if exp_cmd[1]:
-                        path_match = (cand_cmd[1] == exp_cmd[1] or 
-                                      (cand_cmd[1] and (exp_cmd[1].startswith(cand_cmd[1]) or cand_cmd[1].startswith(exp_cmd[1]))))
-                    else:
-                        path_match = True
-                    if name_match and path_match:
-                        hit = True
-                        if rnk == 1:
-                            top1_hits += 1
-                        topk_hits += 1
-                        break
-
-        if candidates_clean:
-            non_empty += 1
-
-        rec = {
-            "session": t.get("session"),
-            "index": t.get("index"),
-            "context": context,
-            "expected_raw": expected,
-            "candidates_raw": candidates_clean,
-            "hit_in_topk": bool(hit),
-            "error": err
-        }
-        fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        fout.flush()
-        results.append(rec)
-        time.sleep(args.sleep)
-
-    fout.close()
-
-    total_done = len(results)
-    topk_rate = topk_hits / total_done if total_done else 0.0
-    top1_rate = top1_hits / total_done if total_done else 0.0
-    non_empty_rate = non_empty / total_done if total_done else 0.0
-
-    summary = {
-        "total_tasks": total_done,
-        "non_empty": non_empty,
-        "topk_hits": topk_hits,
-        "top1_hits": top1_hits,
-        "topk_rate": topk_rate,
-        "top1_rate": top1_rate,
-        "k": args.k,
-        "context_len": args.context_len
-    }
-    if llm_type == "ollama":
-        summary["model"] = args.model
-
-    with open(args.output + ".summary.json", "w", encoding="utf-8") as s:
-        json.dump(summary, s, indent=2)
-
-    print("\n=== SUMMARY ===")
-    print(f"Total tasks: {total_done}")
-    print(f"Non-empty predictions: {non_empty}/{total_done} ({non_empty_rate*100:.2f}%)")
-    print(f"Top-{args.k} hits: {topk_hits}/{total_done} -> {topk_rate*100:.2f}%")
-    print(f"Top-1 hits: {top1_hits}/{total_done} -> {top1_rate*100:.2f}%")
-    print(f"Detailed results: {args.output}")
-    print(f"Summary: {args.output}.summary.json")
+            raw_response = query_model(prompt, temp=args.temp)
+        else:  # ollama
+            raw_response = query_model(prompt, args.model, args.ollama_url, temp=args.temp, timeout=120)
+        
+        candidates = []
+        if raw_response: 
+            candidates = [utils.clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
+        candidates = candidates[:args.k]
+    
+        if not candidates: 
+            empty_responses_count += 1
 

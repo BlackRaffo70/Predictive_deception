@@ -113,7 +113,7 @@ def main():
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 
-    core_rag.prediction_evaluation(args, query_model=query_gemini)
+    core_rag.prediction_evaluation(args, "gemini", query_model=query_gemini)
 
 if __name__ == "__main__":
     main()

@@ -223,12 +223,6 @@ def hit_db(target_cmd: str, retrieved_examples_text: str) -> bool:
 
     return False
 
-def clean_ollama_candidate(line: str) -> str:
-    line = line.strip()
-    line = re.sub(r"^\d+\.\s*", "", line)   # rimuove "1. "
-    line = line.strip("`")                  # rimuove backticks
-    return line.strip()
-
 def make_rag_prompt(context_list: List[str], rag_text: str, k: int) -> str:
     current_history = "\n".join(context_list[-10:])
     return f"""
@@ -251,12 +245,19 @@ CURRENT SESSION HISTORY:
 PREDICT NEXT {k} COMMANDS (Raw text only):
 """.strip()
 
-def prediction_evaluation(args, query_model):
+def prediction_evaluation(args, llm_type, query_model):
     # Configurazione del DB vettoriale
     rag = VectorContextRetriever(persist_dir=args.persist_dir)
     source_for_index = args.index_file if args.index_file else args.sessions
     check_path = os.path.join(args.persist_dir, "DB_checkpoint.txt")
     rag.index_file(source_for_index, context_len=args.context_len, checkpoint_path=check_path)
+
+    # Ping Ollama
+    if llm_type == "ollama":
+        try:
+            _ = query_model("Ping per testare connessione server", args.model, args.ollama_url, temp=0.0, timeout=10)
+        except Exception as e:
+            raise SystemExit(f"Impossibile contattare Ollama: {e}\nEseguire `ollama serve` e assicurarsi della presenza del modello inserito")
 
     # Preparazione task di cui eseguire la prediction
     tasks = []
@@ -329,7 +330,7 @@ def prediction_evaluation(args, query_model):
             raw_response = query_model(prompt, args.model)
             candidates = []
             if raw_response: 
-                candidates = [clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
+                candidates = [utils.clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
             candidates = candidates[:args.k]
              
             if not candidates: 
