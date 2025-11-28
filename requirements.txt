@@ -28,3 +28,6 @@ bitsandbytes
 # Machine Learning utilities
 scikit-learn
 numpy
+
+#Deception
+paramiko
