@@ -11,13 +11,11 @@
 
     - Intero dataset su dispositivo esterno:
 
-        python utilities_script/download_zenodo.py --dst ext --dst-path /media/matteo/BNKRBL/DatasetZenodo
-
-        python utilities_script/download_zenodo.py --dst ext --dst-path /media/matteo/T9/DatasetZenodo
+        python inspectDataset/download_zenodo.py --dst ext --dst-path /media/matteo/T9/DatasetZenodo
     
     - Qualche file random in locale
 
-        python utilities_script/download_zenodo.py --dst local --dst-path data --n 1 
+        python inspectDataset/download_zenodo.py --dst local --dst-path data --n 1 
 
     le flag sono:
     - dst = può assumere solo due valori: local, ext. Serve per specificare il dispositivo di archivizione dove verranno scaricati i file

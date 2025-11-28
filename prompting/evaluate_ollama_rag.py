@@ -29,6 +29,18 @@
 
         python3 prompting/evaluate_ollama_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/rag/dataset/ollama_rag_results_n10_ctx5_k5.jsonl --k 5 --rag-k 3 --context-len 5 --n 10
 
+    dove le varie flag sono:
+    - sessions = per specificare file jsonl contenente le sessioni per eseguire prediction
+    - persist-dir = per specificare cartella contenente DB vettoriale
+    - index-file = per specificare file jsonl per indicizzazione del DB vettoriale (se diverso da sessions)
+    - output = per specificare nome del file dove verranno generati i risultati della prediction
+    - model = per specificare nome modello Ollama
+    - ollama-url = url per inviare il prompt al modello ollama in locale
+    - k = candidati proposti come next command dell'attaccante
+    - rag-k = esempi storici da recuperare nel DB vettoriale
+    - context-len = numero di comandi che rappresentano il contesto di attacco
+    - n = numero di prediction da eseguire (0 = una prediction per ogni sessione del file di input)
+
 - OSSERVAZIONI:
 
     L'esecuzione di questo codice può portare a due problemi in particolare:
@@ -70,20 +82,19 @@ def query_ollama(prompt: str, model: str, url: str, temp: float = 0.0, timeout: 
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Gemini with RAG Vector Search")
-    parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
-    parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente db vettoriale")
-    parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
-    parser.add_argument("--output", default=None, help="Nome file output")
+    parser.add_argument("--sessions", required=True, help="File jsonl contenente le sessioni per eseguire prediction")
+    parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente DB vettoriale")
+    parser.add_argument("--index-file", help="File jsonl per indicizzazione del DB vettoriale (se diverso da sessions)")
+    parser.add_argument("--output", default=None, help="Nome del file dove verranno generati i risultati della prediction")
     parser.add_argument("--model", default="codellama", help="Modello Ollama (es. llama3, mistral, codellama)")
     parser.add_argument("--ollama-url", default="http://localhost:11434/api/generate")
-    parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
-    parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
-    parser.add_argument("--context-len", type=int, default=5, help="Lunghezza contesto")
-    parser.add_argument("--guaranteed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
-    parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
+    parser.add_argument("--k", type=int, default=5, help="Candidati proposti come next command dell'attaccante")
+    parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare nel DB vettoriale")
+    parser.add_argument("--context-len", type=int, default=5, help="Numero di comandi che rappresentano il contesto di attacco")
+    parser.add_argument("--n", type=int, default=0, help="Numero di prediction da eseguire (0 = una prediction per ogni sessione del file di input)")
     
     args = parser.parse_args()
-    if args.output is None: args.output = f"output/rag/prova/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    if args.output is None: args.output = f"output/rag/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
     

@@ -23,6 +23,7 @@
     dove le flag sono:
     - input = File di input da analizzare
     - output = Radice dei file di output generati
+    - filter = Specifica il numero di comandi minimo che devono avere le sessioni dopo il filtraggio
     - want = Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi
 """
 

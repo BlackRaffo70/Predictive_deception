@@ -9,11 +9,11 @@
 
     Lo script serve per processare più file del dataset Zenodo con record=3687527. Lo script richiama 
     analyze_and_clean.py per ogni file, esegue il merge dei file CLEAN e RAW prodotti, calcolando anche 
-    le statistiche aggregate. Il file CLEAN contenente il merge dei file viene poi suddiviso in modo randomico
-    in due file: uno contenente il 70% delle righe del file iniziale, l'altro contenente il restante 30%.
-    Queste funzionalità sono espresse attraverso l definizione di due funzioni:
+    le statistiche aggregate. Il file CLEAN (se non viene prodotto si utilizza quella RAW) contenente il merge dei 
+    file viene poi suddiviso in modo randomico in due file: uno contenente il 70% delle righe del file iniziale, 
+    l'altro contenente il restante 30%. Queste funzionalità sono espresse attraverso la definizione di due funzioni:
         
-        - merge_all(input_dir: str, output_prefix: str) -> esegue analyze_and_clean.py per ogni file, generando file RAW e CLEAN, esegue il merge di tutti i file RAW e CLEAN creati e calcola le statistiche aggregate
+        - merge_all(input_dir: str, output_prefix: str) -> esegue analyze_and_clean.py per ogni file, generando file RAW e CLEAN (senza ripetizione di sessioni contenenti gli stessi comandi), esegue il merge di tutti i file RAW/CLEAN creati e calcola le statistiche aggregate
         - split_jsonl_file(input_path: str, output_train: str, output_test: str, train_ratio: float = 0.7) -> Divide un file .jsonl in due file (train/test) selezionando le righe in modo casuale senza ripetizioni.
 
 - PRE-REQUISITI:
@@ -32,6 +32,7 @@
     dove le flag sono:
     - input = Cartella di input da analizzare
     - output = Radice dei file di output generati
+    - filter = Specifica il numero di comandi minimo che devono avere le sessioni dopo il filtraggio
     - want = Preferenza sui file da generare: raw = solo file raw; clean = solo file clean; both = entrambi
 """
 

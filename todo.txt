@@ -1,2 +1,0 @@
-cose da fare:
-- eliminare guaranteed-ctx 

@@ -9,16 +9,14 @@
 - MODALITÀ:
     Il file contiene la funzione query_gemini() che crea il client per mandare il prompt a LLM gemini 
     (è possibile scegliere il modello). Tutte le funzionalità per il supporto all'approccio RAG (Retrieval-Augmented Generation)
-    sono contenute all'interno del file core_rag.py in quanto in comune con lo script evaluate_ollama_rag.py. I risultati della 
-    valutazione della prediction vengono salvati nel file output/rag/prova/gemini_rag_result_*.jsonl o 
-    output/rag/dataset/gemini_rag_result_*.jsonl a seconda del numero di file e parametri utilizzati.
+    sono contenute all'interno del file core_rag.py in quanto in comune con lo script evaluate_ollama_rag.py. 
 
 - PRE-REQUISITI (comandi da eseguire da riga di comando):
 
     export GOOGLE_API_KEY=CHIAVE API    -> comando per esportare in locale la chiave per eseguire API Gemini (da rifare ogni volta che si chiude il terminale)
     source .env/bin/activate            -> comando per attivare enviroment virtuale
-    pip install chromedb                -> comando per scaricare 
-    pip install sentence-transformers   -> comando per scaricare 
+    pip install chromedb                
+    pip install sentence-transformers    
 
 - COMANDO PER ESECUZIONE (ATTENZIONE -> è necessario eseguire la prima riga di pre-requisiti ogni volta che si chiude il terminale):
     
@@ -28,8 +26,18 @@
 
     - Intero dataset (contenuto su dispositivo di archiviazione esterna)  
 
-        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage --output output/rag/dataset/gemini_rag_results_n10_ctx5_k5.jsonl  --k 5 --rag-k 3 --context-len 5 --n 10
+        python3 prompting/evaluate_gemini_rag.py --sessions /media/matteo/T9/outputMerge/cowrie_TEST.jsonl --index-file /media/matteo/T9/outputMerge/cowrie_TRAIN.jsonl --persist-dir /media/matteo/T9/chroma_storage  --k 5 --rag-k 3 --context-len 5 --n 10
 
+    dove le varie flag sono:
+    - sessions = per specificare file jsonl contenente le sessioni per eseguire prediction
+    - persist-dir = per specificare cartella contenente DB vettoriale
+    - index-file = per specificare file jsonl per indicizzazione del DB vettoriale (se diverso da sessions)
+    - output = per specificare nome del file dove verranno generati i risultati della prediction
+    - model = per specificare nome modello Gemini
+    - k = candidati proposti come next command dell'attaccante
+    - rag-k = esempi storici da recuperare nel DB vettoriale
+    - context-len = numero di comandi che rappresentano il contesto di attacco
+    - n = numero di prediction da eseguire (0 = una prediction per ogni sessione del file di input)
 """
 
 # -------------------------
@@ -95,21 +103,19 @@ def query_gemini(prompt: str, model_name: str, temp: float = 0.0) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Gemini with RAG Vector Search")
-    parser.add_argument("--sessions", required=True, help="File JSONL con le sessioni di test")
-    parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente db vettoriale")
-    parser.add_argument("--index-file", help="File JSONL per DB vettoriale (se diverso da sessions)")
-    parser.add_argument("--output", default=None, help="Nome file output")
+    parser.add_argument("--sessions", required=True, help="File jsonl contenente le sessioni per eseguire prediction")
+    parser.add_argument("--persist-dir", default="./chroma_storage", help="Cartella contenente DB vettoriale")
+    parser.add_argument("--index-file", help="File jsonl per indicizzazione del DB vettoriale (se diverso da sessions)")
+    parser.add_argument("--output", default=None, help="Nome del file dove verranno generati i risultati della prediction")
     parser.add_argument("--model", default="gemini-flash-latest", help="Nome modello (es. gemini-1.5-pro-latest, gemini-pro)")  # modello spesso più stabile
-    parser.add_argument("--k", type=int, default=5, help="Numero di predizioni")
-    parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare")
-    parser.add_argument("--context-len", type=int, default=5, help="Lunghezza contesto")
-    parser.add_argument("--guaranteed-ctx", choices=["yes", "no"], default="yes", help="Per la creazione dei task, se il valore è yes, viene garantita la presenta di contesto costituita da context-len comandi")
-    parser.add_argument("--n", type=int, default=0, help="Max test (0=tutti)")
+    parser.add_argument("--k", type=int, default=5, help="Candidati proposti come next command dell'attaccante")
+    parser.add_argument("--rag-k", type=int, default=3, help="Esempi storici da recuperare nel DB vettoriale")
+    parser.add_argument("--context-len", type=int, default=5, help="Numero di comandi che rappresentano il contesto di attacco")
+    parser.add_argument("--n", type=int, default=0, help="Numero di prediction da eseguire (0 = una prediction per ogni sessione del file di input)")
 
     args = parser.parse_args()
 
-    if args.output is None: args.output = f"output/rag/prova/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
-
+    if args.output is None: args.output = f"output/rag/gemini_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 

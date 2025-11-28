@@ -1,74 +1,32 @@
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
+"""
+Il file contiene due funzoni di utilità che vengono utilizzate nei diversi script progettati.
+Le funzioni presenti sono:
+
+- normalize_for_compare(cmd: str) -> List[Tuple[str, str]] = normalizzazione dei comandi, con supporto del pipelining.
+- clean_ollama_candidate(line: str) = funzione utilizzata per "pulire" la risposta di LLM ollama, fortemente indicizzata e verbosa (caratteristica del modello)
+"""
+
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
+
 import re
 from typing import List, Tuple
+
+# -------------------------
+# FUNCTION SECTION
+# -------------------------
 
 CMD_NAME_RE = re.compile(r"[a-zA-Z0-9._/\-]+")     # nome comando
 PATH_RE = re.compile(r"(/[^ ]+|\.{1,2}/[^ ]+)")    # path-like
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")  # qualunque <...>
 CODE_FENCE_RE = re.compile(r'```(?:bash|sh)?\s*(.*?)\s*```', re.S | re.I)
 
-def clean_llm_response(resp: str, k: int) -> List[str]:
-    """
-    Estrae SOLO i comandi generati dall'LLM.
-    - Rimuove testo descrittivo
-    - Rimuove numerazione / bullet
-    - Supporta code fences
-    - Supporta pipeline e redirections
-    - Restituisce max k righe interpretabili come comandi
-    """
-
-    if not resp:
-        return []
-
-    out = resp.strip()
-
-    # 1) estrai contenuto dentro eventuale code block
-    m = re.search(r"```(?:bash|sh)?\s*(.*?)\s*```", out, flags=re.S)
-    if m:
-        out = m.group(1).strip()
-
-    lines = out.splitlines()
-    cleaned = []
-
-    for ln in lines:
-        ln = ln.strip()
-        if not ln:
-            continue
-
-        # 2) rimuovi numerazione e bullet
-        ln = re.sub(r"^\d+[\.\)\-]\s*", "", ln)       # 1. cmd
-        ln = re.sub(r"^[\-\*\•]\s*", "", ln)          # - cmd
-
-        # 3) elimina frasi non comando
-        if ln.lower().startswith(("sorry", "i cannot", "i can’t","based", "the next", "i am unable",
-                                  "i'm unable", "this is", "as an ai")):
-            continue
-
-        # 4) tieni solo linee plausibili come comandi
-        if not re.match(r"[a-zA-Z0-9./<]", ln):
-            continue  # scarta righe che non iniziano come comandi
-
-        cleaned.append(ln)
-
-        if len(cleaned) >= k:
-            break
-
-    return cleaned
-
 def normalize_for_compare(cmd: str) -> List[Tuple[str, str]]:
-    """
-    Normalizzazione estesa con gestione del pipelining.
-    Ritorna una lista di tuple (name, path), una per ogni comando nella pipeline.
-
-    Ad es.:
-    "dmidecode | grep <STRING> | head -n <NUMBER>"
-
-    → [
-        ("dmidecode", ""),
-        ("grep", ""),
-        ("head", "")
-      ]
-    """
-
     if not cmd:
         return []
 

@@ -3,7 +3,7 @@
 # -------------------------
 
 """
-Il file, che funge da libreria per i due file evaluate_ollama_tokp.py e evaluate_GEMINI_tokp.py, 
+Il file, che funge da libreria per i due file evaluate_ollama_tokp.py e evaluate_gemini_tokp.py, 
 contiene la logica fondamentale per l'esecuzione del prompting nei due differenti modelli. All'interno di 
 questa libreria sono presenti i seguenti elementi:
 
@@ -17,12 +17,13 @@ questa libreria sono presenti i seguenti elementi:
 
     - Funzioni di prompting (creano il prompt da mandare al LLM):
 
-        - make_prompt_topk_from_context(context: List[str], k: int) = prompt con contesto. 
-            Al LLM vengono inviati anche i --context-len comandi precedenti al comando di cui deve predirre 
-            il successivo. Genera k comandi che possono essere il successivo
-        - make_prompt_topk_for_single(cmd: str, k: int) = prompt SENZA contesto. 
-            Al LLM viene passato unicamente il comando di cui deve predirre il successivo. Genera k comandi 
-            che possono essere il successivo
+        - make_prompt_topk_without_whitelist(context: List[str], k: int) = prompt base per la predict del successivo
+            comando.
+        - make_prompt_topk_whitelist(cmd: str, k: int) = al prompt base vengono passati anche le whitelist per
+            facilitare la costruzione del comando.
+        
+        In entrambi i casi al LLM vengono inviati anche i --context-len comandi precedenti al comando di cui 
+        deve predirre il successivo. Genera k comandi che possono essere il successivo
     
     - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
         il prompt, a seconda dei parametri specificati da utente, e valuta le prediction effettuate
@@ -395,18 +396,15 @@ def prediction_evaluation(args, llm_type, query_model):
         with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
         
         valid_lines = []
-        if args.guaranteed_ctx == "yes":
-            # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
-            for line in lines:
-                if not line.strip():
-                    continue
-                data = json.loads(line)
-                cmds = data.get("commands", [])
-                if len(cmds) > args.context_len:
-                    valid_lines.append(line)
-        else:
-            valid_lines = lines
-
+        # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
+        for line in lines:
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            cmds = data.get("commands", [])
+            if len(cmds) > args.context_len:
+                valid_lines.append(line)
+        
         # Se args.n > 0, seleziona randomicamente solo tra le valide
         if args.n > 0:
             random_lines = random.sample(valid_lines, min(args.n, len(valid_lines)))

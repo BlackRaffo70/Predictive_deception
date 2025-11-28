@@ -12,10 +12,11 @@ questa libreria sono presenti i seguenti elementi:
     Questa rappresenta la classe fondamentale per l'esecuzione dell'approccio RAG (Retrieval-Augmented Generation), per 
     prevedere i comandi futuri sulla base di sessioni di attacco passate. Le sessioni di attacco (e anche delle finestre
     di dimensione minore) vengono trasformate in embeddings (vettori di numeri che rappresentano un qualsiasi oggetto 
-    -> oggetti simili, presentano degli embedding simili) e salvate all'interno di un DB vettoriale. Ricercando all'interno
-    del DB gli embedding simili a quelli di una sessione di attacco in corso, vengono restituiti contesti di attacco passati
-    nonchè il successivo comando che era stato inserito. Questo elemento può essere utile per prevedere il successivo 
-    comando inserito da un'attaccante. La classe presenta diverse funzioni:
+    -> oggetti simili, presentano degli embedding simili) e salvate all'interno di un DB vettoriale (senza la ripetizione di 
+    embeddings simili). Ricercando all'interno del DB gli embedding simili a quelli di una sessione di attacco 
+    in corso, vengono restituiti contesti di attacco passati nonchè il successivo comando che era stato inserito. 
+    Questo elemento può essere utile per prevedere il successivo comando inserito da un'attaccante. 
+    La classe presenta diverse funzioni:
     
     - __init__(self, persist_dir: str, collection_name="honeypot_attacks") -> configurazione del rag DB (Chroma), con creazione del client e definizione del modello di embedding
     - load_seen_vectors(self) -> funzione utilitaria utilizzata all'interno della successiva funzione. Nel caso di blocco durante l'indicizzazione, tale funzione serve per caricare all'interno di un set i vettori già indicizzati nel DB (per evitare di indicizzare vettori uguali provenienti da sessioni differenti)
@@ -24,7 +25,6 @@ questa libreria sono presenti i seguenti elementi:
 
 - Funzioni (utilizzate nei suddetti file):
     - hit_db(target_cmd: str, retrieved_examples_text: str) = funzione che serve per verificare se il comando obiettivo della prediction è stato indovinato attraverso la retrieve all'interno del DB vettoriale
-    - clean_ollama_candidate(line: str) = funzione utilizzata per "pulire" la risposta di LLM ollama, fortemente indicizzata e verbosa (caratteristica del modello)
     - make_rag_prompt(context_list: List[str], rag_text: str, k: int)
     - prediction_evaluation(args) = funzione che viene chiamata dai suddenti file e che invia al LLM 
         il prompt, a seconda dei parametri specificati da utente
@@ -259,17 +259,14 @@ def prediction_evaluation(args, llm_type, query_model):
         with open(args.sessions, "r", encoding="utf-8") as file: lines = [line for line in file if line.strip()]
         
         valid_lines = []
-        if args.guaranteed_ctx == "yes":
-            # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
-            for line in lines:
-                if not line.strip():
-                    continue
-                data = json.loads(line)
-                cmds = data.get("commands", [])
-                if len(cmds) > args.context_len:
-                    valid_lines.append(line)
-        else:
-            valid_lines = lines
+        # Tra le linee lette, seleziono quelle che presentano context_len + 1 -> necessario per la creazione dei task
+        for line in lines:
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            cmds = data.get("commands", [])
+            if len(cmds) > args.context_len:
+                valid_lines.append(line)
 
         # Se args.n > 0, seleziona randomicamente solo tra le valide
         if args.n > 0:
