@@ -347,7 +347,7 @@ if __name__ == "__main__":
     while True:
         try:
             client, addr = sock.accept()
-            # Passiamo lo scenario al thread
+            # Passiamo lo scenario al threault
             t = threading.Thread(target=handle_connection, args=(client, addr, SCENARIO_CONFIG))
             t.daemon = True
             t.start()
