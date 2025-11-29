@@ -94,7 +94,7 @@ def main():
     parser.add_argument("--n", type=int, default=0, help="Numero di prediction da eseguire (0 = una prediction per ogni sessione del file di input)")
     
     args = parser.parse_args()
-    if args.output is None: args.output = f"output/rag/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+    if args.output is None: args.output = f"output/rag/ollama/ollama_rag_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     # Modifico il nome della cartella di contenimento dei vettori -> db fortemente influenzato da context_len
     args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
     
