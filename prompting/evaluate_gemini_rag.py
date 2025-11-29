@@ -48,7 +48,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import core_rag
+from . import core_rag
 from google.genai.types import HarmCategory, HarmBlockThreshold
 from google.genai import Client
 

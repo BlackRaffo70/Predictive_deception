@@ -40,7 +40,7 @@ import sys
 import json
 import time
 import random
-import utils                            
+from .utils import *
 from typing import List
 from tqdm import tqdm
 import chromadb
