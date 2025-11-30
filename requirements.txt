@@ -18,13 +18,6 @@ transformers
 tokenizers
 safetensors
 
-# Training + Fine-tuning
-torch
-accelerate
-datasets
-peft
-bitsandbytes
-
 # Machine Learning utilities
 scikit-learn
 numpy
