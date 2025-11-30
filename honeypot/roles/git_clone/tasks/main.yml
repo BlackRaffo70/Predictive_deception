@@ -1,0 +1,17 @@
+---
+- name: Installazione git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+
+- name: Copia script per git clone/pull
+  ansible.builtin.copy:
+    src: clone_repo.sh
+    dest: /usr/local/bin/clone_repo.sh
+    mode: '0744'
+
+- name: Esecuzione script
+  ansible.builtin.command: /usr/local/bin/clone_repo.sh
+
+

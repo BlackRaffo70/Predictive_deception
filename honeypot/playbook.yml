@@ -1,0 +1,7 @@
+---
+- hosts: honeypot
+  become: true
+  roles:
+    - db_vettoriale
+    - git_clone
+    - env_python

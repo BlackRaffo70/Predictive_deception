@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# -------------------------
+# INTRODUCTION -> some utils informations about the Python script
+# -------------------------
+
 """
 Defender runtime:
 
@@ -17,6 +21,10 @@ Defender runtime:
           ed elimina gli artefatti (file) creati per le altre 4
 """
 
+# -------------------------
+# IMPORT SECTION -> imports necessary for the Python script
+# -------------------------
+
 import json
 import time
 from datetime import datetime
@@ -24,18 +32,16 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import sys, os
 
-# aggiunge la directory superiore (Predictive_deception/) al PYTHONPATH
+# aggiunta della directory madre (Predictive_deception/) al PYTHONPATH per import
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
-
-
-
-# ===================== IMPORT DAI TUOI SCRIPT =====================
 
 from prompting.core_rag import VectorContextRetriever, make_rag_prompt
 from prompting.evaluate_gemini_rag import query_gemini  # usa già google.genai.Client e GOOGLE_API_KEY
 
-# ===================== CONFIGURAZIONE =============================
+# -------------------------
+# CONFIGURATION
+# -------------------------
 
 # Log JSONL prodotto dal tuo honeypot MindTrap
 HONEYPOT_LOG = "mindtrap_log.json"   # cambia se hai un path diverso
@@ -57,7 +63,7 @@ os.makedirs(DEFENSE_ARTIFACTS_DIR, exist_ok=True)
 # - deve essere lo stesso persist_dir che hai usato in evaluate_gemini_rag.py
 #   dopo la linea: args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 #   Esempio: "/media/matteo/T9/chroma_storage_ctx5"
-RAG_PERSIST_DIR = "/chroma_storage"   # <--- MODIFICA QUI
+RAG_PERSIST_DIR = "/home/vagrant/chroma_storage_ctx5"   # <--- MODIFICA QUI
 
 CONTEXT_LEN = 5          # deve combaciare con --context-len usato per indicizzare il DB
 RAG_K = 3                # quanti esempi simili recuperare dal DB
