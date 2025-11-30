@@ -17,12 +17,18 @@ Defender runtime:
           ed elimina gli artefatti (file) creati per le altre 4
 """
 
-import os
 import json
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+import sys, os
+
+# aggiunge la directory superiore (Predictive_deception/) al PYTHONPATH
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
+
+
 
 # ===================== IMPORT DAI TUOI SCRIPT =====================
 
