@@ -63,7 +63,7 @@ os.makedirs(DEFENSE_ARTIFACTS_DIR, exist_ok=True)
 # - deve essere lo stesso persist_dir che hai usato in evaluate_gemini_rag.py
 #   dopo la linea: args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 #   Esempio: "/media/matteo/T9/chroma_storage_ctx5"
-RAG_PERSIST_DIR = "/home/vagrant/chroma_storage_ctx5"   # <--- MODIFICA QUI
+RAG_PERSIST_DIR = "/Users/raffaele/PycharmProjects/Predictive_deception/chroma_storage_ctx5"   # <--- MODIFICA QUI
 
 CONTEXT_LEN = 5          # deve combaciare con --context-len usato per indicizzare il DB
 RAG_K = 3                # quanti esempi simili recuperare dal DB
