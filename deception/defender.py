@@ -31,6 +31,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import sys, os
+import shutil
+
+
 
 # aggiunta della directory madre (Predictive_deception/) al PYTHONPATH per import
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,24 +42,43 @@ sys.path.append(ROOT_DIR)
 from prompting.core_rag import VectorContextRetriever, make_rag_prompt
 from prompting.evaluate_gemini_rag import query_gemini  # usa già google.genai.Client e GOOGLE_API_KEY
 
-# -------------------------
-# CONFIGURATION
-# -------------------------
+# ----------------------------------------------------------------------
+# 🔧 OUTPUT DIRECTORY CENTRALIZZATA
+# Tutto ciò che il defender genera (state, difese, log, artefatti, debug)
+# verrà inserito dentro:  deception/output_deception/
+# ----------------------------------------------------------------------
 
-# Log JSONL prodotto dal tuo honeypot MindTrap
-HONEYPOT_LOG = "mindtrap_log.json"   # cambia se hai un path diverso
+# Percorso assoluto della cartella corrente (deception/)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# File dove salviamo la history dei comandi per sessione
-COMMANDS_STATE_FILE = "runtime/commands_state.json"
+# Cartella principale per tutti gli output
+OUT_DIR = os.path.join(BASE_DIR, "output_deception")
 
-# File dove salviamo l’indice delle difese già definite per comando
-DEFENSE_INDEX_FILE = "runtime/defenses_index.json"
+# ----------------------------------------------------------------------
+# 🔒 Percorsi specifici dei file gestiti dal defender
+# ----------------------------------------------------------------------
 
-# Cartella dove creiamo fisicamente gli artefatti di difesa
-DEFENSE_ARTIFACTS_DIR = "defense_artifacts"
+# Log JSONL prodotto dal tuo finto honeypot (o vero se integrato)
+HONEYPOT_LOG = os.path.join(OUT_DIR, "honeypot_log", "mindtrap_log.json")
 
-os.makedirs("runtime", exist_ok=True)
-os.makedirs(DEFENSE_ARTIFACTS_DIR, exist_ok=True)
+# File dove il defender tiene traccia della history dei comandi per sessione
+COMMANDS_STATE_FILE = os.path.join(OUT_DIR, "runtime", "commands_state.json")
+
+# File dove registriamo quali difese sono già state create per ogni comando
+DEFENSE_INDEX_FILE = os.path.join(OUT_DIR, "runtime", "defenses_index.json")
+
+# Cartella contiene i file di difesa generati dal LLM
+DEFENSE_ARTIFACTS_DIR = os.path.join(OUT_DIR, "defense_artifacts")
+
+# ----------------------------------------------------------------------
+# 📁 Creazione automatica delle cartelle (evita errori "No such file or directory")
+# ----------------------------------------------------------------------
+os.makedirs(os.path.join(OUT_DIR, "runtime"), exist_ok=True)         # stato interno
+os.makedirs(os.path.join(OUT_DIR, "defense_artifacts"), exist_ok=True) # artefatti difesa
+os.makedirs(os.path.join(OUT_DIR, "honeypot_log"), exist_ok=True)      # log honeypot monitorato
+os.makedirs(os.path.join(OUT_DIR, "debug"), exist_ok=True)             # debug opzionale
+
+# (Da qui in avanti lo script continua normalmente…)
 
 # ====== CONFIG RAG / GEMINI ======
 # IMPORTANTE:
@@ -85,8 +107,8 @@ history_comandi: Dict[str, List[str]] = {}
 # }
 active_predictions: Dict[str, Dict[str, Any]] = {}
 
-# ===================== UTILS JSON =================================
 
+# ===================== UTILS JSON =================================
 
 def load_json(path: str, default):
     if not os.path.exists(path):
@@ -206,68 +228,105 @@ def materialize_defense_artifacts(defense: Dict[str, Any]) -> List[str]:
 
 # ===================== LLM: CREAZIONE NUOVA DIFESA =================
 
-
 def create_defense_for_predicted_command(command: str, session_key: str) -> Dict[str, Any]:
-    """
-    Usa lo stesso client Gemini (query_gemini) per generare
-    una difesa per un comando predetto.
-    """
     history = history_comandi.get(session_key, [])
+    cmd_safe = command.replace("%", "%%")
 
     prompt = f"""
-You are a defensive assistant in a cybersecurity lab with an SSH honeypot.
-You have observed the following session:
+You must output ONLY a JSON object.
 
-COMMAND HISTORY (chronological):
-{json.dumps(history, ensure_ascii=False)}
+FORMAT (STRICT):
 
-PREDICTED command (possible next move of the attacker):
-"{command}"
-
-Define a LOCAL defense strategy that consists of creating some files
-(artifacts, scripts, config files, rules, fake logs, etc.) but do NOT execute real commands.
-
-Return ONLY a JSON object with this EXACT structure:
-
-{
+{{
   "description": "short description of the defense",
+  "intended_path": "/realistic/system/path/that/an/attacker/would_expect",
   "artifacts": [
-    {"path": "defense_artifacts/something.sh", "content": "#!/bin/bash\necho 'dummy defense'"},
-    {"path": "defense_artifacts/other.conf", "content": "key=value"}
+    {{
+      "path": "defense_artifacts/<SAFE_FILENAME>",
+      "content": "<FILE CONTENT>"
+    }}
   ]
-}
+}}
 
-No comments or extra text, JSON only.
+RULES:
+- EXACTLY ONE artifact inside the "artifacts" list.
+- ALWAYS include the field "intended_path".
+- "intended_path" must be a REALISTIC Linux path where such a file *would normally exist*.
+- DO NOT output markdown or explanations.
+
+Generate JSON for predicted command: "{cmd_safe}".
 """.strip()
 
+    # ---- 1) CHIAMATA A GEMINI ----
     raw = query_gemini(prompt, model_name=GEMINI_MODEL, temp=0.0)
-    if not raw:
-        # fallback se il modello non risponde
-        return {
+
+    # ---- 2) PULIZIA ANTI-THOUGHT SIGNATURE ----
+    if hasattr(raw, "candidates"):
+        parts = []
+        for c in raw.candidates:
+            for p in c.content.parts:
+                if hasattr(p, "text"):
+                    parts.append(p.text)
+        raw = "\n".join(parts)
+
+    if not isinstance(raw, str):
+        raw = str(raw)
+
+    # ---- 3) ESTRAZIONE JSON PULITO ----
+    import re
+    candidates = re.findall(r"\{.*?\}", raw, flags=re.DOTALL)
+
+    clean = "{}"
+    for c in candidates:
+        try:
+            json.loads(c)
+            clean = c
+            break
+        except:
+            pass
+
+    # ---- 4) PARSING O FALLBACK ----
+    try:
+        defense = json.loads(clean)
+    except:
+        defense = {
             "description": f"Fallback defense for predicted command: {command}",
+            "intended_path": f"/var/log/deception/{command.replace(' ', '_')}.log",
             "artifacts": [
                 {
                     "path": f"{DEFENSE_ARTIFACTS_DIR}/fallback_{abs(hash(command))}.txt",
-                    "content": f"Defense placeholder for predicted command: {command}"
+                    "content": ""
                 }
             ]
         }
+        return defense
 
-    try:
-        defense = json.loads(raw)
-    except Exception:
-        # fallback se l'output non è JSON valido
-        defense = {
-            "description": f"Unparseable LLM defense for command: {command}",
-            "artifacts": [
-                {
-                    "path": f"{DEFENSE_ARTIFACTS_DIR}/unparsed_{abs(hash(command))}.txt",
-                    "content": raw
-                }
-            ]
-        }
+    # ---- 5) FIX UNIVERSALE intended_path ----
+    if "intended_path" not in defense or not defense["intended_path"]:
+        safe_cmd = command.replace(" ", "_").replace("/", "_")
+        defense["intended_path"] = f"/var/log/deception/{safe_cmd}.log"
+
+    # ---- 6) FIX UNIVERSALE artifacts ----
+    arts = defense.get("artifacts", [])
+
+    if not arts:
+        arts = [{
+            "path": f"{DEFENSE_ARTIFACTS_DIR}/{abs(hash(command))}.txt",
+            "content": ""
+        }]
+
+    normalized = []
+    for a in arts:
+        fname = os.path.basename(a.get("path", "artifact.txt"))
+        normalized.append({
+            "path": f"{DEFENSE_ARTIFACTS_DIR}/{fname}",
+            "content": a.get("content", "")
+        })
+
+    defense["artifacts"] = normalized
 
     return defense
+
 
 
 # ===================== PREDIZIONE PROSSIMI COMANDI =================
@@ -319,6 +378,10 @@ def plan_and_apply_defenses(session_key: str, predictions: List[str]):
     - crea fisicamente i file
     - memorizza gli artefatti per poterli cancellare in seguito
     """
+
+    new_defenses = []      # <--- comandi che NON c'erano
+    reused_defenses = []   # <--- comandi che GIÀ esistevano
+
     state = {
         "predicted_commands": predictions,
         "artifacts": {}  # cmd -> [paths]
@@ -326,9 +389,14 @@ def plan_and_apply_defenses(session_key: str, predictions: List[str]):
 
     for cmd_pred in predictions:
         existing = find_existing_defense(cmd_pred)
+
         if existing:
+            # Difesa già nota
+            reused_defenses.append(cmd_pred)
             defense_meta = existing
         else:
+            # NUOVA difesa generata
+            new_defenses.append(cmd_pred)
             defense_meta = create_defense_for_predicted_command(cmd_pred, session_key)
             register_defense(cmd_pred, defense_meta)
 
@@ -336,6 +404,14 @@ def plan_and_apply_defenses(session_key: str, predictions: List[str]):
         state["artifacts"][cmd_pred] = artifact_paths
 
     active_predictions[session_key] = state
+
+    # 🔥 LOG PULITO
+    if new_defenses:
+        print(f"[DEFENSE] Nuove difese create: {new_defenses}")
+    if reused_defenses:
+        print(f"[DEFENSE] Difese già esistenti riutilizzate: {reused_defenses}")
+
+    print("[DEFENSE] Generazione difese completata.\n")
 
 
 def cleanup_other_branches(session_key: str, actual_cmd: str):
@@ -433,6 +509,7 @@ def handle_new_command(entry: Dict[str, Any]):
 
     # 4) Crea/applica difese per le 5 direzioni
     plan_and_apply_defenses(session_key, predictions)
+    print(f"[DONE] Difese generate per '{cmd}' (session: {session_key})")
 
 
 # ===================== MAIN LOOP ==================================
