@@ -107,7 +107,7 @@ def main():
     
     args = ap.parse_args()
     if args.output is None:
-        args.output = f"output/topk/gemini_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+        args.output = f"output/topk/gemini/gemini_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     core_topk.prediction_evaluation(args, "gemini", query_model=query_gemini)
 
 if __name__ == "__main__":

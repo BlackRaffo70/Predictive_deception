@@ -82,7 +82,7 @@ def main():
     
     args = ap.parse_args()
     if args.output is None:
-        args.output = f"output/topk/ollama_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
+        args.output = f"output/topk/ollama/ollama_topk_results_n{args.n}_ctx{args.context_len}_k{args.k}.jsonl"
     core_topk.prediction_evaluation(args, "ollama", query_model=query_ollama)
 
 if __name__ == "__main__":
