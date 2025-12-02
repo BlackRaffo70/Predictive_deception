@@ -31,16 +31,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import sys, os
-import shutil
 
 
-
-# aggiunta della directory madre (Predictive_deception/) al PYTHONPATH per import
+# --- FIX IMPORTS (non tocchiamo core_rag) ---
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
+sys.path.append(os.path.join(ROOT_DIR, "prompting"))
 
 from prompting.core_rag import VectorContextRetriever, make_rag_prompt
-from prompting.evaluate_gemini_rag import query_gemini  # usa già google.genai.Client e GOOGLE_API_KEY
+from prompting.evaluate_gemini_rag import query_gemini
 
 # ----------------------------------------------------------------------
 # 🔧 OUTPUT DIRECTORY CENTRALIZZATA
@@ -85,7 +84,7 @@ os.makedirs(os.path.join(OUT_DIR, "debug"), exist_ok=True)             # debug o
 # - deve essere lo stesso persist_dir che hai usato in evaluate_gemini_rag.py
 #   dopo la linea: args.persist_dir = f"{args.persist_dir}_ctx{args.context_len}"
 #   Esempio: "/media/matteo/T9/chroma_storage_ctx5"
-RAG_PERSIST_DIR = "/Users/raffaele/PycharmProjects/Predictive_deception/chroma_storage_ctx5"   # <--- MODIFICA QUI
+RAG_PERSIST_DIR = os.getenv("chroma_storage")
 
 CONTEXT_LEN = 5          # deve combaciare con --context-len usato per indicizzare il DB
 RAG_K = 3                # quanti esempi simili recuperare dal DB
