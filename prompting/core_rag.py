@@ -324,7 +324,7 @@ def prediction_evaluation(args, llm_type, query_model):
 
             candidates = []
             if raw_response: 
-                candidates = [utils.clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
+                candidates = [clean_ollama_candidate(line) for line in raw_response.splitlines() if line.strip()]
             candidates = candidates[:args.k]
              
             if not candidates: 
@@ -334,12 +334,12 @@ def prediction_evaluation(args, llm_type, query_model):
             # Per ogni candidato prodotto, normalizzo il contenuto e verifico sia uguale al contenuto del comando expected
             hit = False
             hit_rank = 0
-            norm_expected = utils.normalize_for_compare(expected)
+            norm_expected = normalize_for_compare(expected)
             if not norm_expected: 
                 sys.exit(f"Errore: Comando expected non trovato")
 
             for rnk, cand in enumerate(candidates, 1):
-                norm_cand = utils.normalize_for_compare(cand)
+                norm_cand = normalize_for_compare(cand)
                 if len(norm_cand) == len(norm_expected):
                     i = 0
                     while i < len(norm_expected):
