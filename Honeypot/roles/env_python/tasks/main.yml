@@ -1,0 +1,52 @@
+---
+- name: "Aggiornamento pacchetti pre-installazione"
+  apt:
+    update_cache: yes
+    upgrade: yes
+
+- name: "Installa pacchetti base python"
+  apt:
+    name: "{{ required_packages }}"
+    state: present
+
+- name: "Creazione ambiente virtuale nella cartella del progetto"
+  command: python3 -m venv "{{ venv_dir }}"
+  args:
+    creates: "{{ venv_dir }}/bin/activate"
+  become_user: vagrant
+
+- name: "Installa libreria Python nell'ambiente virtuale - chromadb"
+  pip:
+    virtualenv: "{{ venv_dir }}"
+    name: chromadb
+    state: present
+  become_user: vagrant
+
+- name: "Installa libreria Python nell'ambiente virtuale - google-genai"
+  pip:
+    virtualenv: "{{ venv_dir }}"
+    name: google-genai
+    state: present
+  become_user: vagrant
+
+- name: "Installa libreria Python nell'ambiente virtuale - python-dotenv"
+  pip:
+    virtualenv: "{{ venv_dir }}"
+    name: python-dotenv
+    state: present
+  become_user: vagrant
+
+
+- name: "Installa libreria Python nell'ambiente virtuale - pydantic"
+  pip:
+    virtualenv: "{{ venv_dir }}"
+    name: pydantic
+    state: present
+  become_user: vagrant
+
+- name: "Installa libreria Python nell'ambiente virtuale - sentence-transformers (lungo)"
+  pip:
+    virtualenv: "{{ venv_dir }}"
+    name: sentence-transformers
+    state: present
+  become_user: vagrant
