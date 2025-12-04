@@ -1,0 +1,8 @@
+---
+- name: "Copia DB vettoriale - cartella chroma_storage_ctx5"
+  ansible.builtin.copy:
+    src:  chroma_storage_ctx5
+    dest: /home/vagrant/
+    owner: vagrant
+    group: vagrant
+    mode: 0744

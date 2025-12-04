@@ -1,0 +1,37 @@
+---
+- name: "Creazione utente matteo (con password=prova)"
+  user:
+    name: matteo
+    password: "{{ 'prova' | password_hash('sha512') }}"
+    shell: /usr/local/bin/fakeshell
+    createhome: yes
+
+- name: "Trasferimento dello script fakeshell"
+  copy:
+    src: fakeshell.py
+    dest: /usr/local/bin/fakeshell
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: "Creazione file /var/log/fakeshell.json -> contiene tutti i comandi inseriti nel terminale fake"
+  file:
+    path: /var/log/fakeshell.json
+    state: touch
+    owner: root
+    group: root
+    mode: '0666'
+
+- name: "Modifica file configurazione sshd per autenticazione tramite password a matteo"
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+        Match User matteo
+            PasswordAuthentication yes
+            PubkeyAuthentication no
+  notify: Riavvia ssh
+
+- name: "Rimozione della cartella .ssh per utente matteo"
+  ansible.builtin.file:
+    path: /home/matteo/.ssh
+    state: absent

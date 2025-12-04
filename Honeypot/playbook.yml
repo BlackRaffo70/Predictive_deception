@@ -1,0 +1,8 @@
+---
+- hosts: honeypot
+  become: yes
+  roles:
+    - db_vettoriale
+    - fakeshell_v2
+    - defender
+    - env_python
