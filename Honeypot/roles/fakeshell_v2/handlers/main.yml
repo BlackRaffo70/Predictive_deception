@@ -1,4 +1,0 @@
-- name: "Riavvia ssh"
-  service:
-    name: ssh
-    state: restarted
