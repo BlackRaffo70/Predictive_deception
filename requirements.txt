@@ -13,14 +13,6 @@ sentence-transformers
 openai
 google-genai
 
-# HuggingFace ecosystem
-transformers
-tokenizers
-safetensors
-
 # Machine Learning utilities
 scikit-learn
 numpy
-
-#Deception
-paramiko
