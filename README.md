@@ -218,28 +218,26 @@ Predictive_deception/
 ```
 
 ⸻
----
 ## 🧭 Workflow del progetto (script principali)
 
-| Step | Script / File                                                | Input                               | Output                                      | Descrizione |
-|------|--------------------------------------------------------------|-------------------------------------|---------------------------------------------|-------------|
-| 1️⃣  | `inspectDataset/download_zenodo.py`                          | —                                   | `data/*.tar.gz`, `data/*.json`              | Scarica automaticamente i dataset Cowrie da Zenodo e li salva nella cartella dati locale. |
-| 2️⃣  | `inspectDataset/analyze_and_clean.py`                        | `data/*.json`                       | `*_RAW.jsonl`, `*_CLEAN.jsonl`, statistiche | Analizza i log Cowrie, normalizza i comandi, pulisce rumore/duplicati e produce versioni RAW/CLEAN in JSONL. |
-| 3️⃣  | `inspectDataset/merge_cowrie_datasets.py`                    | `*_CLEAN.jsonl`                     | `cowrie_ALL_*.jsonl`, `cowrie_TRAIN/TEST`   | Unisce più file puliti, crea un dataset unico e lo split train/test per gli esperimenti. |
-| 4️⃣  | `prompting/core_rag.py`                                      | `cowrie_TRAIN.jsonl`, `chroma_storage/` | `chroma_storage/*`                          | Costruisce e interroga il database vettoriale ChromaDB (embedding + retrieval) per il RAG. |
-| 5️⃣  | `prompting/core_topk.py`                                     | Sessioni JSONL                      | —                                           | Motore generico di predizione Top-k (senza RAG), riusato dai vari script di valutazione. |
-| 6️⃣  | `prompting/evaluate_gemini_topk.py`                          | `cowrie_TEST.jsonl`                | `output/gemini_topk_results.jsonl`          | Valuta l’API Gemini in modalità Top-k, misurando Top-1/Top-5 sulle sessioni di test. |
-| 7️⃣  | `prompting/evaluate_gemini_rag.py`                           | `cowrie_TEST.jsonl`, `chroma_storage/` | `output/gemini_rag_results.jsonl`       | Valuta Gemini integrato con RAG (ChromaDB), usando contesto + retrieval per predire il prossimo comando. |
-| 8️⃣  | `prompting/evaluate_ollama_topk.py`                          | `cowrie_TEST.jsonl`                | `output/ollama_topk_results.jsonl`          | Valuta modelli locali (es. CodeLlama via Ollama) in modalità Top-k senza RAG. |
-| 9️⃣  | `prompting/evaluate_ollama_rag.py`                           | `cowrie_TEST.jsonl`, `chroma_storage/` | `output/ollama_rag_results.jsonl`       | Valuta modelli locali con RAG (vector search + LLM) sulle stesse sessioni di test. |
-| 🔟  | `Honeypot/Vagrantfile` + `Honeypot/playbook.yml`              | —                                   | VM di test configurata                      | Crea l’ambiente honeypot con Vagrant + Ansible (rete, pacchetti, utenti, Python, log, ecc.). |
-| 1️⃣1️⃣ | `Honeypot/roles/fakeshell_v2/files/fakeshell.py`             | Input interattivo SSH nella VM      | `/var/log/fakeshell.json`                   | Fake shell avanzata: esegue comandi reali, mostra prompt realistico e logga ogni comando in formato JSONL. |
-| 1️⃣2️⃣ | `Honeypot/roles/defender/files/defender2.py`                 | `/var/log/fakeshell.json`, ChromaDB | File di deception nel FS della VM           | Versione deployabile del Defender: segue il log, usa RAG+Gemini per predire i prossimi comandi e crea artefatti di deception. |
-| 1️⃣3️⃣ | `deception/main.py` + `deception/ssh_server.py` + `session_handler.py` | Connessioni SSH reali               | Sessioni honeypot instradate verso il “brain” | Avvia il server SSH honeypot, accetta connessioni, gestisce le sessioni e inoltra i comandi al motore di deception. |
-| 1️⃣4️⃣ | `deception/defender.py`                                      | Log honeypot (es. `fakeshell.json`), ChromaDB, LLM | Artefatti reali + log difese      | Defender runtime principale: legge i comandi in tempo reale, predice i prossimi passi con RAG+LLM e crea file/configurazioni esca. |
-| 1️⃣5️⃣ | `deception/brain.py`                                         | Stato sessioni + log + predizioni   | Decisioni di deception / strategie           | Coordina a livello alto la strategia di deception (scenari, livelli di ingaggio, tipo di artefatti da generare). |
-| 1️⃣6️⃣ | `deception/config.py`                                        | —                                   | Parametri di configurazione condivisi        | Centralizza porte, path, chiavi API, location del log, del DB vettoriale e degli scenari di deception. |
----
+| Step | Script / File                                                | Descrizione |
+|------|--------------------------------------------------------------|-------------|
+| 1️⃣  | `inspectDataset/download_zenodo.py`                          | Scarica automaticamente i dataset Cowrie da Zenodo e li salva nella cartella `data/` per l’analisi successiva. |
+| 2️⃣  | `inspectDataset/analyze_and_clean.py`                        | Analizza i log Cowrie, normalizza i comandi, rimuove rumore/duplicati e genera versioni RAW/CLEAN in formato JSONL con statistiche. |
+| 3️⃣  | `inspectDataset/merge_cowrie_datasets.py`                    | Unisce più file puliti in un unico dataset e produce lo split train/test (es. `cowrie_TRAIN.jsonl`, `cowrie_TEST.jsonl`) per gli esperimenti. |
+| 4️⃣  | `prompting/core_rag.py`                                      | Implementa il motore RAG: crea/usa il database vettoriale in `chroma_storage/` e fornisce funzioni di retrieval contestuale per le predizioni. |
+| 5️⃣  | `prompting/core_topk.py`                                     | Fornisce la logica generica di predizione Top-k (senza RAG), riutilizzabile da Gemini e modelli locali. |
+| 6️⃣  | `prompting/evaluate_gemini_topk.py`                          | Valuta il modello Gemini in modalità Top-k pura, calcolando accuratezza Top-1/Top-5 sulle sessioni di test. |
+| 7️⃣  | `prompting/evaluate_gemini_rag.py`                           | Valuta Gemini integrato con RAG (ChromaDB), usando contesto + retrieval per migliorare la predizione del prossimo comando. |
+| 8️⃣  | `prompting/evaluate_ollama_topk.py`                          | Esegue test su modelli locali (es. CodeLlama via Ollama) in modalità Top-k senza RAG, per confrontarli con Gemini. |
+| 9️⃣  | `prompting/evaluate_ollama_rag.py`                           | Valuta modelli locali integrati con RAG, combinando vector search + LLM per la next-command prediction. |
+| 🔟  | `Honeypot/Vagrantfile` + `Honeypot/playbook.yml`              | Definisce e configura l’ambiente honeypot tramite Vagrant + Ansible (VM, utenti, Python, log, ruoli Ansible, ecc.). |
+| 1️⃣1️⃣ | `Honeypot/roles/fakeshell_v2/files/fakeshell.py`             | Implementa una fake shell avanzata nella VM: prompt realistico, esecuzione comandi e logging di ogni comando in `/var/log/fakeshell.json`. |
+| 1️⃣2️⃣ | `Honeypot/roles/defender/files/defender2.py`                 | Versione deployabile del Defender: segue il log della fake shell, usa RAG+Gemini per predire i prossimi comandi e crea artefatti di deception nel filesystem della VM. |
+| 1️⃣3️⃣ | `deception/main.py` + `deception/ssh_server.py` + `deception/session_handler.py` | Avvia il server SSH honeypot, gestisce le connessioni e le sessioni dell’attaccante e inoltra i comandi verso il motore di deception. |
+| 1️⃣4️⃣ | `deception/defender.py`                                      | Defender runtime principale: legge i comandi in tempo reale, interroga RAG+LLM e genera file/configurazioni esca in base alle predizioni. |
+| 1️⃣5️⃣ | `deception/brain.py`                                         | Coordina l’intelligenza di alto livello della deception (strategie, scenari, logica su quando/come creare artefatti). |
+| 1️⃣6️⃣ | `deception/config.py`                                        | Centralizza configurazioni condivise: path del log, posizione del DB vettoriale, porte, chiavi API e selezione dello scenario di deception. |
 
 
 ## 🧠 Note metodologiche
