@@ -3,6 +3,6 @@
   become: yes
   roles:
     - db_vettoriale
-    - fakeshell_v2
+    - fakeshell
     - defender
     - env_python
