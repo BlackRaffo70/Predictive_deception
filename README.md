@@ -252,77 +252,92 @@ Predictive_deception/
 | 1️⃣6️⃣ | `deception/config.py`                                        | —                                   | Parametri di configurazione condivisi        | Centralizza porte, path, chiavi API, location del log, del DB vettoriale e degli scenari di deception. |
 ---
 
-## 📊 Output di esempio
-
-Esempio di riga in ollama_results.jsonl:
-```bash
-{"context": ["whoami", "uname -a"], "expected": "cat /etc/passwd", "predicted": "cat /etc/shadow", "similarity": 0.85, "match": 0, "raw_response": "cat /etc/shadow"}
-```
-Esempio di file summary.json:
-```bash
-{
-  "total_new": 200,
-  "exact_acc": 0.12,
-  "near_matches_jaccard>=0.80": 0.35,
-  "error_rate": 0.05,
-  "model": "mistral:7b-instruct-q4_0",
-  "generated_at": "2025-11-04T10:00:00Z"
-}
-```
-
-⸻
-
----
 
 ## 🧠 Note metodologiche
 
-- I modelli funzionano meglio con **prompt brevi** e **in inglese**, come quelli costruiti in  
-  `core_topk.py` e `core_RAG.py`.
-- Le predizioni devono sempre essere pulite: estrarre **solo la prima riga valida**, usando le funzioni
-  di parsing e normalizzazione in `utils.py`.
-- Testare diversi valori di **context length** (`--context-len`), soprattutto con:  
-  - `evaluate_ollama_topk.py`  
-  - `evaluate_GEMINI_topk.py`  
-  - `evaluate_ollama_RAG.py`  
-  - `evaluate_GEMINI_RAG.py`
-- Per valutare correttamente i modelli, utilizzare sia:
-  - **Exact Match** (già implementato nel tuo codice)
-  - **Confronto normalizzato** tramite `utils.normalize_for_compare()`
-- Quando si usano API come Gemini, mantenere attivo **rate limit** + **sleep** (già presente nei tuoi script).
-- Preferire modelli locali via **Ollama** (`codellama`, `llama3`, `mistral`, `gemma:2b`) per test massivi,
-  perché gli script `evaluate_ollama_*` sono ottimizzati per esecuzioni lunghe.
-- Usare dataset puliti generati da:
-  - `merge_cowrie_datasets.py`
-  - `analyze_and_clean.py`
-  - `convert_sessions_to_finetune.py`  
-  per ridurre rumore e comandi non utili all’LLM.
-- Per RAG, evitare di reinizializzare il DB: `VectorContextRetriever` verifica già se la collezione esiste.
+- I modelli lavorano meglio con **prompt compatti** e **in inglese**, come quelli costruiti in  
+  `prompting/core_topk.py` e `prompting/core_rag.py`.
 
+- Le predizioni vanno sempre **pulite e normalizzate**:  
+  usa le funzioni di parsing e confronto in `prompting/utils.py`  
+  (es. normalizzazione comandi, split per riga, gestione spazi).
+
+- È utile testare diversi valori di **context length** (`CONTEXT_LEN`), in particolare con:
+  - `prompting/evaluate_gemini_topk.py`
+  - `prompting/evaluate_gemini_rag.py`
+  - `prompting/evaluate_ollama_topk.py`
+  - `prompting/evaluate_ollama_rag.py`
+  - e nel runtime del defender (`deception/defender.py`), dove `CONTEXT_LEN` controlla quanto “passato” vede il modello.
+
+- Per valutare correttamente i modelli conviene combinare:
+  - **Exact Match** (già calcolato negli script di valutazione)
+  - **Confronto normalizzato**, usando le utility di `prompting/utils.py`
+    per ridurre l’effetto di differenze minori (spazi, quote, ecc.).
+
+- Quando usi API esterne come **Gemini** (`evaluate_gemini_*.py`, `deception/defender.py`):
+  - tieni conto di **rate limit** e possibili errori temporanei;
+  - mantieni una logica di retry/sleep leggera, così da non bloccare gli esperimenti o il defender.
+
+- Per esperimenti su larga scala è preferibile usare modelli locali via **Ollama**:
+  - `prompting/evaluate_ollama_topk.py`
+  - `prompting/evaluate_ollama_rag.py`  
+  sono pensati per girare a lungo, con loop su centinaia/migliaia di sessioni.
+
+- Usa sempre dataset **puliti e coerenti**, generati dalla pipeline:
+  - `inspectDataset/download_zenodo.py` → download dei log Cowrie
+  - `inspectDataset/analyze_and_clean.py` → pulizia, normalizzazione e statistiche
+  - `inspectDataset/merge_cowrie_datasets.py` → merge e split train/test  
+  in modo da ridurre rumore, comandi rari inutili e formati incoerenti.
+
+- Per il **RAG**:
+  - indicizza una sola volta in `chroma_storage/` usando la logica di `prompting/core_rag.py`;
+  - riutilizza lo stesso DB vettoriale sia negli script di valutazione (`evaluate_*_rag.py`)  
+    sia nel defender (`deception/defender.py`) tramite `VectorContextRetriever`;
+  - evita di ricreare la collection a ogni esecuzione: il retriever è già pensato per lavorare su un DB esistente.
 ---
 
 ## 🔧 Possibili estensioni future
 
-- Addestrare un modello locale tramite **fine-tuning** su `convert_sessions_to_finetune.py`
-  (formato già pronto per supervised next-command prediction).
-- Implementare metriche avanzate come:
-  - **Top-k Accuracy**
-  - **Recall@k**
-  - **Confidence Distribution** dei candidati prodotti dal modello
-- Integrare direttamente il motore predittivo (top-k o RAG) dentro Cowrie tramite:
-  - hook sugli eventi `cowrie.command.input`  
-  - API locale che richiama `evaluate_ollama_topk.py`
-- Utilizzare `core_RAG.py` per creare un **Honeypot con memoria storica** degli attacchi,
-  aggiornando dinamicamente ChromaDB con nuove sessioni.
-- Aggiungere una pipeline di:
-  - **Command Semantics Classification** per etichettare automaticamente i pattern:
-    ricognizione, file exfiltration, credential harvesting, persistence, ecc.
-- Costruire dashboard real-time usando i file JSONL prodotti da:
-  - `evaluate_ollama_topk.py`
-  - `evaluate_ollama_RAG.py`
-  - `evaluate_GEMINI_RAG.py`
-- Estendere il dataset includendo altri dataset pubblici (Zenodo 3759652, SIHD, HoneySELK)
-  già compatibili con i tuoi script di merge e normalizzazione.
+- Addestrare un modello locale tramite **fine-tuning** sui dataset puliti generati da  
+  `inspectDataset/analyze_and_clean.py` e `inspectDataset/merge_cowrie_datasets.py`  
+  (esportando le sessioni in formato input→next-command per supervised prediction).
 
+- Estendere il set di metriche nelle valutazioni di:
+  - `prompting/evaluate_gemini_topk.py`
+  - `prompting/evaluate_gemini_rag.py`
+  - `prompting/evaluate_ollama_topk.py`
+  - `prompting/evaluate_ollama_rag.py`  
+  includendo, oltre alla Top-k Accuracy:
+  - **Recall@k**
+  - distribuzione di confidenza / ranking dei candidati (es. punteggi normalizzati).
+
+- Integrare in modo ancora più stretto il motore predittivo nel flusso dell’honeypot:
+  - richiamare la logica di `prompting/core_topk.py` o `prompting/core_rag.py`  
+    direttamente da `deception/session_handler.py` o `deception/ssh_server.py`;
+  - orchestrare le risposte di deception tramite `deception/brain.py` e `deception/defender.py`
+    per adattare gli artefatti al profilo dell’attaccante.
+
+- Usare `prompting/core_rag.py` insieme al DB in `chroma_storage/` per costruire  
+  un **honeypot con memoria storica**:
+  - aggiornare periodicamente ChromaDB con nuove sessioni acquisite dall’ambiente Vagrant (`Honeypot/`);
+  - permettere al defender (`deception/defender.py`) di sfruttare anche gli attacchi più recenti.
+
+- Aggiungere una pipeline di **Command Semantics Classification** nel motore di prompting:
+  - estendere `prompting/utils.py` con etichette di classe (ricognizione, lateral movement, credential harvesting, persistence, ecc.);
+  - usare queste etichette in `deception/brain.py` per scegliere strategie di deception diverse per ogni tipologia di comando.
+
+- Costruire dashboard real-time a partire dai log JSONL prodotti da:
+  - honeypot fake shell (`/var/log/fakeshell.json`, generato da `fakeshell.py` / `fakeshell_easy.py` in `Honeypot/roles/fakeshell_v2/files/`);
+  - output del defender (`output_deception/runtime/*.json` gestiti da `deception/defender.py`);
+  - risultati sperimentali in JSONL generati dagli script di valutazione nella cartella `prompting/`.  
+  Questi possono essere visualizzati con stack tipo ELK/Grafana.
+
+- Estendere il dataset includendo altri sorgenti pubblici (es. nuovi dump Cowrie o honeypot simili)  
+  e normalizzarli tramite:
+  - `inspectDataset/download_zenodo.py` (per download automatici),
+  - `inspectDataset/analyze_and_clean.py`,
+  - `inspectDataset/merge_cowrie_datasets.py`,  
+  mantenendo un formato uniforme per addestramento, RAG e valutazione.
 ---
 
 ## 📚 Riferimenti
