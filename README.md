@@ -45,8 +45,7 @@ Per ogni comando vengono predetti **5 possibili next-steps**.
 Per ciascuno viene generata una *branch* di deception:
 
 - branch A → file X  
-- branch B → directory Y  
-- branch C → canary token Z  
+- branch B → file Y  
 - …
 
 Quando l’attaccante esegue realmente un comando, il sistema:
@@ -55,7 +54,7 @@ Quando l’attaccante esegue realmente un comando, il sistema:
 - elimina le altre 4 con cleanup automatico  
 - conserva coerenza assoluta nel filesystem
 
-Questo crea la sensazione di un sistema vivo e coerente, impossibile da sgamare.
+Questo crea la sensazione di un sistema vivo e coerente, difficilmente roconoscibile.
 
 ---
 
@@ -66,21 +65,12 @@ Combina:
 - history della sessione  
 - sequenze di attacchi precedenti conservate via **ChromaDB RAG**
 
-In questo modo la deception diventa *personalizzata*:
-
-- se l’attaccante mostra pattern simili a botnet → deception tecnica  
-- se mostra pattern umani → deception narrativa e coerente  
-- se usa tool come Mirai, Tsunami, zmap → deception su file system e servizi
-
 ---
 
 ## 🔐 Perché è rivoluzionario
 
 - 🪤 **Deception mirata e contestuale**  
   Non è la solita deception statica: il sistema modifica l’ambiente *in tempo reale* in base al comportamento.
-
-- 🎯 **Trigger nascosti intelligenti**  
-  Canary tokens, honey-credentials e file monitoring attivati solo quando utili.
 
 - 🧠 **Ingaggio dell’attaccante aumentato**  
   L’ambiente sembra perfettamente reale, con struttura coerente e reattiva.
@@ -98,9 +88,8 @@ Il progetto trasforma l’honeypot in un sistema **proattivo**, capace non solo 
 
 - **anticipare** l’attaccante  
 - **modellare** l’ambiente in base al suo comportamento  
-- **manipolare** la percezione dell’host  
-- **studiare** tecniche emergenti tramite dataset predittivi
-
+- **manipolare** la percezione dell’host
+- 
 Si passa così da un honeypot statico a un sistema **intelligente, adattivo e realmente interattivo**, in grado di raccogliere informazioni impossibili da ottenere con soluzioni tradizionali.
 
 ---
@@ -258,7 +247,7 @@ Predictive_deception/
 - I modelli lavorano meglio con **prompt compatti** e **in inglese**, come quelli costruiti in  
   `prompting/core_topk.py` e `prompting/core_rag.py`.
 
-- Le predizioni vanno sempre **pulite e normalizzate**:  
+- Le predizioni vanno quasi sempre **pulite e normalizzate**:  
   usa le funzioni di parsing e confronto in `prompting/utils.py`  
   (es. normalizzazione comandi, split per riga, gestione spazi).
 
@@ -316,11 +305,6 @@ Predictive_deception/
     direttamente da `deception/session_handler.py` o `deception/ssh_server.py`;
   - orchestrare le risposte di deception tramite `deception/brain.py` e `deception/defender.py`
     per adattare gli artefatti al profilo dell’attaccante.
-
-- Usare `prompting/core_rag.py` insieme al DB in `chroma_storage/` per costruire  
-  un **honeypot con memoria storica**:
-  - aggiornare periodicamente ChromaDB con nuove sessioni acquisite dall’ambiente Vagrant (`Honeypot/`);
-  - permettere al defender (`deception/defender.py`) di sfruttare anche gli attacchi più recenti.
 
 - Aggiungere una pipeline di **Command Semantics Classification** nel motore di prompting:
   - estendere `prompting/utils.py` con etichette di classe (ricognizione, lateral movement, credential harvesting, persistence, ecc.);
