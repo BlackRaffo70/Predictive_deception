@@ -24,13 +24,8 @@ La **deception** in questo progetto non è statica, ma *dinamica e reattiva*.
 Si basa su tre principi fondamentali:
 
 ### 1️⃣ *Preparazione anticipata*  
-Prima che l’attaccante esegua il comando previsto, il sistema crea:
-
-- file fake ma plausibili  
-- directory esca  
-- script o configurazioni manipolate  
-- log fittizi  
-- output alterati
+Prima che l’attaccante esegua il comando previsto, il sistema crea per ogni comando predetto, una descrizione di difesa e un artefatto (file) da collocare
+in percorsi realistici;
 
 Il tutto generato automaticamente dal modello LLM, a seconda del comando predetto.
 
@@ -86,14 +81,14 @@ Il progetto trasforma l’honeypot in un sistema **proattivo**, capace non solo 
 - **anticipare** l’attaccante  
 - **modellare** l’ambiente in base al suo comportamento  
 - **manipolare** la percezione dell’host
-- 
+  
 Si passa così da un honeypot statico a un sistema **intelligente, adattivo e realmente interattivo**, in grado di raccogliere informazioni impossibili da ottenere con soluzioni tradizionali.
 
 ---
 
 ## 📦 Requirements
 
-Il progetto utilizza LLM, RAG e dataset da honeypot (Cowrie) per analisi predittiva, deception adattiva e fine-tuning dei modelli.  
+Il progetto utilizza LLM, RAG e dataset da honeypot (Cowrie) per analisi predittiva e deception adattiva.  
 Di seguito l’elenco completo e organizzato delle dipendenze necessarie.
 
 ---
