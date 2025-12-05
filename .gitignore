@@ -8,7 +8,8 @@ output/
 results/
 logs/
 chroma_storage*/
-deception/output_deception
+deception/
+
 
 
 # Ignora notebook temporanei
