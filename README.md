@@ -280,44 +280,43 @@ Predictive_deception/
   - evita di ricreare la collection a ogni esecuzione: il retriever è già pensato per lavorare su un DB esistente.
 ---
 
-## 🔧 Possibili estensioni future
+## 🔮 Lavori futuri
 
-- Addestrare un modello locale tramite **fine-tuning** sui dataset puliti generati da  
-  `inspectDataset/analyze_and_clean.py` e `inspectDataset/merge_cowrie_datasets.py`  
-  (esportando le sessioni in formato input→next-command per supervised prediction).
+### Fine-tuning specializzato dei modelli LLM
+- Passare dall’uso zero-/few-shot a un **fine-tuning supervisionato** di un modello locale (es. CodeLlama via Ollama).
+- Usare come dati:
+  - sequenze di comandi dai log Cowrie (`TRAIN/TEST`);
+  - log Vagrant (`fakeshell.json`);
+  - sessioni da honeypot reali in produzione.
+- Obiettivo: adattare il modello alla distribuzione reale dei comandi SSH, ridurre hallucination e migliorare la coerenza delle sequenze multi-step.  
+  Gemini rimane il riferimento “cloud”, il CodeLlama fine-tunato il motore locale per la predizione *next-command*.
 
-- Estendere il set di metriche nelle valutazioni di:
-  - `prompting/evaluate_gemini_topk.py`
-  - `prompting/evaluate_gemini_rag.py`
-  - `prompting/evaluate_ollama_topk.py`
-  - `prompting/evaluate_ollama_rag.py`  
-  includendo, oltre alla Top-k Accuracy:
-  - **Recall@k**
-  - distribuzione di confidenza / ranking dei candidati (es. punteggi normalizzati).
+### Predizione multi-step e pianificazione della deception
+- Estendere la predizione dal singolo comando Top-k a **brevi traiettorie di comandi** (2–5 step).
+- Questo permette di:
+  - pre-caricare catene di artefatti lungo possibili percorsi dell’attaccante (ricognizione → config → esfiltrazione);
+  - stimare l’intenzione probabile (es. credential harvesting vs. lateral movement);
+  - orchestrare strategie di deception a livello di **sessione**, non solo di singolo comando.
+- Particolarmente utile contro script automatizzati e tool di brute forcing con sequenze deterministiche.
 
-- Integrare in modo ancora più stretto il motore predittivo nel flusso dell’honeypot:
-  - richiamare la logica di `prompting/core_topk.py` o `prompting/core_rag.py`  
-    direttamente da `deception/session_handler.py` o `deception/ssh_server.py`;
-  - orchestrare le risposte di deception tramite `deception/brain.py` e `deception/defender.py`
-    per adattare gli artefatti al profilo dell’attaccante.
+### Deception dinamica guidata dal modello
+- Evolvere dalla creazione di pochi file isolati a una **deception dinamica** in cui il modello:
+  - suggerisce insiemi coerenti di directory, log, chiavi e configurazioni fittizie;
+  - contribuisce a simulare interi scenari di sistema (es. server applicativo con database “fantasma”);
+  - adatta la profondità dell’ingaggio in base al profilo dell’attaccante osservato.
+- In questa visione, `brain.py` diventa un **orchestratore di scenari**, che combina:
+  - predizioni LLM,
+  - knowledge storico dal RAG,
+  - policy di deception definite dall’analista.
 
-- Aggiungere una pipeline di **Command Semantics Classification** nel motore di prompting:
-  - estendere `prompting/utils.py` con etichette di classe (ricognizione, lateral movement, credential harvesting, persistence, ecc.);
-  - usare queste etichette in `deception/brain.py` per scegliere strategie di deception diverse per ogni tipologia di comando.
-
-- Costruire dashboard real-time a partire dai log JSONL prodotti da:
-  - honeypot fake shell (`/var/log/fakeshell.json`, generato da `fakeshell.py` / `fakeshell_easy.py` in `Honeypot/roles/fakeshell_v2/files/`);
-  - output del defender (`output_deception/runtime/*.json` gestiti da `deception/defender.py`);
-  - risultati sperimentali in JSONL generati dagli script di valutazione nella cartella `prompting/`.  
-  Questi possono essere visualizzati con stack tipo ELK/Grafana.
-
-- Estendere il dataset includendo altri sorgenti pubblici (es. nuovi dump Cowrie o honeypot simili)  
-  e normalizzarli tramite:
-  - `inspectDataset/download_zenodo.py` (per download automatici),
-  - `inspectDataset/analyze_and_clean.py`,
-  - `inspectDataset/merge_cowrie_datasets.py`,  
-  mantenendo un formato uniforme per addestramento, RAG e valutazione.
----
+### Apprendimento continuo dai log dell’honeypot
+- Passare da un ChromaDB statico a un **RAG aggiornato continuamente**, in cui:
+  - le nuove sessioni loggate da `fakeshell.py` e dal server SSH vengono periodicamente normalizzate e indicizzate;
+  - il knowledge base si arricchisce con attacchi recenti, seguendo l’evoluzione delle tecniche offensive.
+- Integrare una pipeline automatica per:
+  - il retraining o fine-tuning incrementale del modello locale;
+  - l’aggiornamento del RAG con i nuovi log.
+- L’honeypot diventa così una sorgente continua di dati per migliorare il motore predittivo, non solo un consumatore di knowledge storico.
 
 ## 📚 Riferimenti
 
