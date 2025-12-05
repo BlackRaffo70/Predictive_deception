@@ -14,7 +14,7 @@ Questo progetto introduce un nuovo paradigma: sfruttare un **LLM** per trasforma
 ## 🚀 Idea chiave  
 Un modello di linguaggio (CodeLlama, Llama 3, Gemini, Mistral) analizza in tempo reale la sequenza dei comandi dell’attaccante e **predice il prossimo comando** con elevata accuratezza — *prima che venga digitato*.
 
-Questa predizione permette al sistema di costruire sul filesystem una *realtà manipolata* che l’attaccante non può distinguere da quella autentica.
+Questa predizione permette al sistema di costruire sul filesystem una *realtà manipolata* che l’attaccante non deve essere in grado di distinguere da quella autentica.
 
 ---
 
@@ -48,7 +48,7 @@ Per ciascuno viene generata una *branch* di deception:
 - branch B → file Y  
 - …
 
-Quando l’attaccante esegue realmente un comando, il sistema:
+Quando l’attaccante esegue realmente uno dei comandi predetti, il sistema:
 
 - mantiene **solo la branch corretta**  
 - elimina le altre 4 con cleanup automatico  
@@ -74,9 +74,6 @@ Combina:
 
 - 🧠 **Ingaggio dell’attaccante aumentato**  
   L’ambiente sembra perfettamente reale, con struttura coerente e reattiva.
-
-- 📡 **Threat intelligence potenziata**  
-  La correlazione via RAG tra comandi vecchi e nuovi permette un profiling comportamentale avanzato.
 
 - 🎛 **Riduzione dei falsi positivi**  
   La predizione contestuale evita di generare deception non rilevanti.
@@ -234,7 +231,7 @@ Predictive_deception/
 | 🔟  | `Honeypot/Vagrantfile` + `Honeypot/playbook.yml`              | Definisce e configura l’ambiente honeypot tramite Vagrant + Ansible (VM, utenti, Python, log, ruoli Ansible, ecc.). |
 | 1️⃣1️⃣ | `Honeypot/roles/fakeshell/files/fakeshell.py`             | Implementa una fake shell avanzata nella VM: prompt realistico, esecuzione comandi e logging di ogni comando in `/var/log/fakeshell.json`. |
 | 1️⃣2️⃣ | `Honeypot/roles/defender/files/defender.py`                 | Versione deployabile del Defender: segue il log della fake shell, usa RAG+Gemini per predire i prossimi comandi e crea artefatti di deception nel filesystem della VM. |
-| 1️⃣3️⃣ | `deception/main.py` + `deception/ssh_server.py` + `deception/session_handler.py` | Avvia il server SSH honeypot, gestisce le connessioni e le sessioni dell’attaccante e inoltra i comandi verso il motore di deception. |
+| 1️⃣3️⃣ | `deception/main.py` + `deception/ssh_server.py` + `deception/session_handler.py` | Avvia il server SSH honeypot, utile se si vuole testare l'ambiente in locale senza VM. |
 | 1️⃣4️⃣ | `deception/defender.py`                                      | Defender runtime principale: legge i comandi in tempo reale, interroga RAG+LLM e genera file/configurazioni esca in base alle predizioni. |
 | 1️⃣5️⃣ | `deception/brain.py`                                         | Coordina l’intelligenza di alto livello della deception (strategie, scenari, logica su quando/come creare artefatti). |
 | 1️⃣6️⃣ | `deception/config.py`                                        | Centralizza configurazioni condivise: path del log, posizione del DB vettoriale, porte, chiavi API e selezione dello scenario di deception. |
@@ -245,7 +242,7 @@ Predictive_deception/
 - I modelli lavorano meglio con **prompt compatti** e **in inglese**, come quelli costruiti in  
   `prompting/core_topk.py` e `prompting/core_rag.py`.
 
-- Le predizioni vanno quasi sempre **pulite e normalizzate**:  
+- Le predizioni in alcuni casi vanno  **pulite e normalizzate**:  
   usa le funzioni di parsing e confronto in `prompting/utils.py`  
   (es. normalizzazione comandi, split per riga, gestione spazi).
 
