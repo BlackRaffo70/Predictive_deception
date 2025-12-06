@@ -3,6 +3,9 @@ Queste impostazioni si riscontrano all'interno del Vagrantfile.
 Il provisioning della macchina virtuale viene eseguito in modo automatico tramite l'esecuzione di task Ansible. Nonostante ciò,
 sono presenti alcuni punti non gestiti direttamente dal provisioning:
 
+- Task DB_vettoriale = in questo ruolo all'interno della cartella file, deve essere presente la cartella nominata chroma_storage_ctx5,
+non presente direttamente all'interno del progetto in quanto troppo pesante (2GB)
+
 - Aggiunta di memoria del disco fisso = come anticipato nell'introduzione, il disco della VM è da 25 GB, 5 GB in più rispetto
 al disco creato da Vagrant durante la normale creazione della VM. Per rendere effettiva questa modifica sono necessari una serie di passaggi:
 
