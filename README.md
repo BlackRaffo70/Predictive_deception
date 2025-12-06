@@ -157,16 +157,6 @@ Predictive_deception/
 │   ├── chroma.sqlite3
 │   └── DB_checkpoint.txt
 │
-├── deception/                          # Motore di deception + defender runtime
-│   ├── scenarios/
-│   ├── brain.py
-│   ├── config.py
-│   ├── defender.py
-│   ├── host.key
-│   ├── main.py
-│   ├── session_handler.py
-│   └── ssh_server.py
-│
 ├── Honeypot/                           # Ambiente honeypot (Vagrant + Ansible)
 │   ├── Vagrantfile
 │   ├── playbook.yml
@@ -226,10 +216,6 @@ Predictive_deception/
 | 🔟  | `Honeypot/Vagrantfile` + `Honeypot/playbook.yml`              | Definisce e configura l’ambiente honeypot tramite Vagrant + Ansible (VM, utenti, Python, log, ruoli Ansible, ecc.). |
 | 1️⃣1️⃣ | `Honeypot/roles/fakeshell/files/fakeshell.py`             | Implementa una fake shell avanzata nella VM: prompt realistico, esecuzione comandi e logging di ogni comando in `/var/log/fakeshell.json`. |
 | 1️⃣2️⃣ | `Honeypot/roles/defender/files/defender.py`                 | Versione deployabile del Defender: segue il log della fake shell, usa RAG+Gemini per predire i prossimi comandi e crea artefatti di deception nel filesystem della VM. |
-| 1️⃣3️⃣ | `deception/main.py` + `deception/ssh_server.py` + `deception/session_handler.py` | Avvia il server SSH honeypot, utile se si vuole testare l'ambiente in locale senza VM. |
-| 1️⃣4️⃣ | `deception/defender.py`                                      | Defender runtime principale: legge i comandi in tempo reale, interroga RAG+LLM e genera file/configurazioni esca in base alle predizioni. |
-| 1️⃣5️⃣ | `deception/brain.py`                                         | Coordina l’intelligenza di alto livello della deception (strategie, scenari, logica su quando/come creare artefatti). |
-| 1️⃣6️⃣ | `deception/config.py`                                        | Centralizza configurazioni condivise: path del log, posizione del DB vettoriale, porte, chiavi API e selezione dello scenario di deception. |
 
 
 ## 🧠 Note metodologiche
