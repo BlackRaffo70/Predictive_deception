@@ -1,5 +1,5 @@
 ---
 project_dir: /home/vagrant/defender
-gemini_api_key: "METTI QUA LA TUA CHIAVE GOOGLE PER GEMINI"
+gemini_api_key: "CHIAVE GOOGLE API"
 script_src: defender.py
 script_dest: "{{ project_dir }}/defender.py"

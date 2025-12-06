@@ -43,10 +43,3 @@
     name: pydantic
     state: present
   become_user: vagrant
-
-- name: "Installa libreria Python nell'ambiente virtuale - sentence-transformers (lungo)"
-  pip:
-    virtualenv: "{{ venv_dir }}"
-    name: sentence-transformers
-    state: present
-  become_user: vagrant
