@@ -20,6 +20,7 @@ deception/
 *.log
 __pycache__/
 *.pyc
+host.key
 
 # Ignora installer Google Cloud CLI
 google-cloud-cli*
