@@ -109,6 +109,7 @@ Predictive_deception/
 ├── .gitignore
 └── README.md
 ```
+La cartella chroma_storage, contenente il DB vettoriale, non è presente effettivamente all'interno del repository in quanto, a causa della dimensione del file, supera il limite massimo di Github. 
 
 ## Setup e Installazione
 
@@ -125,7 +126,8 @@ Operazioni da eseguire prima di creare la macchina virtuale:
 - Role DB_vettoriale = in questo ruolo, all'interna della cartella vars, è presente un file dove vengono specificate alcune variabili utilizzate durante il provsioning della VM. Tra queste è presente anche la variabile gemini_api_key, che deve essere opportunamente modificata inserendo la propria chiave gemini
 
 - Aggiunta di memoria del disco fisso = come spiegato in precedenza, la VM presenta un disco fisso da 25 GB, mentre lo standard delle VM che vengono create tramite Vagrant presenta un disco da 20 GB. Per poter applicare questa modifica è stata inserita una riga all'interno del Vagrantfile che utilizza un plugin Vagrant da installare prima del provisioning. Quest'ultimo si installa attraverso comando:
-    `vagrant plugin install vagrant-disksize`
+    
+    vagrant plugin install vagrant-disksize
 
 Una volta eseguite queste operazioni preliminari è possibile procedere con il provisioning della VM attraverso comando:
     
@@ -135,15 +137,16 @@ Dopo aver creato la macchina virtuale, per poter usufruire correttamente delle s
 
 - Estensione della partizione e del filesystem = grazie all'operazione eseguita prima del provisioning, la VM avrà un disco virtuale più grande, ma il sistema operativo al suo interno vedrà ancora la partizione con la vecchia dimensione. Lo spazio aggiuntivo sarà "non allocato". Per rendere utilizzabili i 5GB aggiuntivi, bisogna estendere il filesystem attraverso l'esecuzione di una serie di comandi:
 
-    `sudo apt update && sudo apt install cloud-guest-utils -y`
-    `sudo growpart /dev/sda 1`
-    `sudo resize2fs /dev/sda1`
-    `df -h`
+    sudo apt update && sudo apt install cloud-guest-utils -y
+    sudo growpart /dev/sda 1`
+    sudo resize2fs /dev/sda1`
+    df -h
 
-- import di sentence-transformers = questo import inizialmente era stato realizzato sotto forma di task Ansible come gli altri import presenti. Tuttavia, a causa della grande quantità di dati da scaricare, il dowloading del pacchetto impiegava troppo tempo e e andava a triggerare il timeout dei task Ansible. Per questo motivo è stato rimosso, ma l'ìimport è necessario per l'esecuzione del codice. Perciò, creata la VM, il pacchetto va installato manualmente attraverso l'esecuzione dei seguenti comandi: 
-    `cd defender/`
-    `source .venv/bin/activate`
-    `pip install sentence-transformers`
+- Import di sentence-transformers = questo import inizialmente era stato realizzato sotto forma di task Ansible come gli altri import presenti. Tuttavia, a causa della grande quantità di dati da scaricare, il dowloading del pacchetto impiegava troppo tempo e e andava a triggerare il timeout dei task Ansible. Per questo motivo è stato rimosso, ma l'ìimport è necessario per l'esecuzione del codice. Perciò, creata la VM, il pacchetto va installato manualmente attraverso l'esecuzione dei seguenti comandi: 
+
+    cd defender/
+    source .venv/bin/activate
+    pip install sentence-transformers
 
 ## Workflow Operativo
 
