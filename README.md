@@ -1,155 +1,68 @@
-<img width="1024" height="233" alt="image" src="https://github.com/user-attachments/assets/e210dcce-57f2-4470-a895-780896dbe45f" />
+# Predictive Deception: LLM-based Command Anticipation in SSH Honeypots
 
-# 🍯 Predictive Deception — LLM-based Command Anticipation in SSH Honeypots
+![Project Status](https://img.shields.io/badge/Status-Research_Prototype-blue)
+![Python](https://img.shields.io/badge/Python-3.10+-yellow)
+![Tech](https://img.shields.io/badge/Technology-LLM%20%7C%20RAG%20%7C%20Ansible-green)
 
----
+Questo repository contiene l'implementazione ufficiale del framework **Predictive Deception**, un'architettura di sicurezza offensiva sviluppata nell'ambito del corso di Ingegneria Informatica dell'Università di Bologna.
 
-## 🎯 Obiettivo del progetto — *Predictive Deception per Honeypot*
-
-Gli honeypot tradizionali osservano e registrano ciò che l’attaccante fa **solo dopo** l’esecuzione di un comando.  
-Questo progetto introduce un nuovo paradigma: sfruttare un **LLM** per trasformare l’honeypot da sistema passivo a **sistema predittivo e adattivo**.
-
----
-
-## 🚀 Idea chiave  
-Un modello di linguaggio (CodeLlama, Llama 3, Gemini, Mistral) analizza in tempo reale la sequenza dei comandi dell’attaccante e **predice il prossimo comando** con elevata accuratezza — *prima che venga digitato*.
-
-Questa predizione permette al sistema di costruire sul filesystem una *realtà manipolata* che l’attaccante non deve essere in grado di distinguere da quella autentica.
+Il progetto introduce un cambio di paradigma nella gestione degli honeypot SSH: dal logging passivo (reattivo) all'anticipazione comportamentale (proattiva), sfruttando **Large Language Models (LLM)** e **Retrieval-Augmented Generation (RAG)**.
 
 ---
 
-## 🪤 Core Concept: Predictive Deception
+## 📑 Indice
 
-La **deception** in questo progetto non è statica, ma *dinamica e reattiva*.  
-Si basa su tre principi fondamentali:
-
-### 1️⃣ *Preparazione anticipata*  
-Prima che l’attaccante esegua il comando previsto, il sistema crea per ogni comando predetto, una descrizione di difesa e un artefatto (file) da collocare
-in percorsi realistici;
-
-Il tutto generato automaticamente dal modello LLM, a seconda del comando predetto.
-
-Esempio:  
-se il modello predice `cat /etc/passwd`, il sistema può generare una versione *decoy*, coerente ma falsificata.
+1. [Abstract](#abstract)
+2. [Core Concept](#core-concept)
+3. [Architettura del Sistema](#architettura-del-sistema)
+4. [Struttura del Repository](#struttura-del-repository)
+5. [Setup e Installazione](#setup-e-installazione)
+6. [Workflow Operativo](#workflow-operativo)
+7. [Autori](#autori)
 
 ---
 
-### 2️⃣ *Branching e pruning*  
-Per ogni comando vengono predetti **5 possibili next-steps**.
+##  Abstract
 
-Per ciascuno viene generata una *branch* di deception:
-
-- branch A → file X  
-- branch B → file Y  
-- …
-
-Quando l’attaccante esegue realmente uno dei comandi predetti, il sistema:
-
-- mantiene **solo la branch corretta**  
-- elimina le altre 4 con cleanup automatico  
-- conserva coerenza assoluta nel filesystem
-
-Questo crea la sensazione di un sistema vivo e coerente, difficilmente roconoscibile.
-
+Gli honeypot tradizionali (es. Cowrie) raccolgono intelligence registrando le azioni degli attaccanti *post-factum*. Questo approccio limita le capacità di inganno (deception) in tempo reale.
+**Predictive Deception** supera questo limite implementando un ciclo OODA (Observe-Orient-Decide-Act) automatizzato:
+1.  **Observe:** Intercetta lo stream di comandi in tempo reale.
+2.  **Orient:** Recupera contesti storici simili da un database vettoriale (RAG).
+3.  **Decide:** Predice la sequenza di prossimi comandi ($Top\text{-}k$) tramite LLM.
+4.  **Act:** Genera e materializza artefatti "esca" (file, log, config) nel filesystem prima che l'attaccante li richieda.
 ---
 
-### 3️⃣ *Deception adattiva basata su RAG*  
-L'LLM non predice "a caso".  
-Combina:
+## Core Concept
+Il cuore del progetto è la transizione da una difesa passiva a una **difesa proattiva e adattiva**.
 
-- history della sessione  
-- sequenze di attacchi precedenti conservate via **ChromaDB RAG**
+Gli honeypot tradizionali (es. Cowrie) si limitano a registrare i comandi dopo che sono stati eseguiti e spesso presentano un ambiente statico facilmente identificabile. Il nostro sistema di **Predictive Deception** inverte questo approccio:
 
+1.  **Anticipazione in Tempo Reale:** Un modulo predittivo basato su LLM analizza la sequenza di comandi dell'attaccante mentre la sessione è in corso.
+2.  **Memoria Storica (RAG):** Utilizzando la *Retrieval-Augmented Generation*, il modello consulta un database vettoriale (ChromaDB) contenente migliaia di sessioni di attacco reali (dataset CyberLab Honeynet) per migliorare la precisione della predizione.
+3.  **Generazione Dinamica di Artefatti:** Prima ancora che l'attaccante prema invio sul prossimo comando, il sistema "immagina" cosa potrebbe chiedere (es. un file di configurazione, una password, una directory specifica) e **crea l'artefatto ingannevole nel filesystem reale**.
+4.  **Coerenza Temporale:** Se l'attaccante interagisce con l'artefatto, questo rimane persistente; se la predizione era errata o il percorso cambia, il sistema ripulisce le "false piste" per mantenere l'ambiente coerente e credibile.
 ---
 
-## 🔐 Perché è rivoluzionario
+##  Architettura del Sistema
 
-- 🪤 **Deception mirata e contestuale**  
-  Non è la solita deception statica: il sistema modifica l’ambiente *in tempo reale* in base al comportamento.
+Il sistema opera all'interno di un ambiente virtualizzato (Vagrant) isolato, orchestrato via Ansible.
 
-- 🧠 **Ingaggio dell’attaccante aumentato**  
-  L’ambiente sembra perfettamente reale, con struttura coerente e reattiva.
+### Diagramma Logico
 
-- 🎛 **Riduzione dei falsi positivi**  
-  La predizione contestuale evita di generare deception non rilevanti.
+```mermaid
+graph TD
+    A[Attacker SSH Session] -->|Input Command| B(FakeShell)
+    B -->|Log JSON| C{Defender Runtime}
+    C -->|Query| D[RAG Module]
+    D -->|Retrieval| E[(ChromaDB)]
+    D -->|Context + History| F[LLM Inference]
+    F -->|Prediction Top-k| C
+    C -->|Generate Artifacts| G[Filesystem Injection]
+    G -->|Interaction| A
+    C -->|Pruning| G
+```
 
----
-
-## 🧩 In sintesi  
-Il progetto trasforma l’honeypot in un sistema **proattivo**, capace non solo di osservare ma di:
-
-- **anticipare** l’attaccante  
-- **modellare** l’ambiente in base al suo comportamento  
-- **manipolare** la percezione dell’host
-  
-Si passa così da un honeypot statico a un sistema **intelligente, adattivo e realmente interattivo**, in grado di raccogliere informazioni impossibili da ottenere con soluzioni tradizionali.
-
----
-
-## 📦 Requirements
-
-Il progetto utilizza LLM, RAG e dataset da honeypot (Cowrie) per analisi predittiva e deception adattiva.  
-Di seguito l’elenco completo e organizzato delle dipendenze necessarie.
-
----
-
-## 🔧 Core Dependencies
-Librerie principali per gestione ambiente, logging, preprocessing e networking.
-
-- `python-dotenv` — gestione variabili d’ambiente
-- `tqdm` — progress bar e logging
-- `requests` — API e download dataset
-- `jsonlines` — lettura/scrittura JSONL
-- `pandas` — preprocess e analisi dataset
-
----
-
-## 🧠 RAG & Embeddings  
-Moduli necessari per creare e interrogare il database vettoriale basato su ChromaDB.
-
-- `chromadb`
-- `sentence-transformers`  
-  (utilizzato per MiniLM-L6-v2 nei retrieval)
-
----
-
-## 🤖 LLM APIs (Gemini / OpenAI / HF)
-Integrazione con i principali modelli LLM utilizzati nel progetto per predizione e generazione degli artefatti di deception.
-
-- `openai`
-- `google-genai`
-- `transformers`
-- `tokenizers`
-- `safetensors`
-
----
-
-## 🧪 Fine-Tuning (CodeLlama / LoRA / PEFT)
-Dipendenze necessarie per addestramento leggero (LoRA) su dataset Cowrie + sequenze attaccante.
-
-- `torch`
-- `accelerate`
-- `datasets`
-- `peft`
-- `bitsandbytes`  
-  (quantizzazione 4/8-bit per GPU poco potenti)
-
----
-
-## 📊 Machine Learning Utilities
-Strumenti usati per normalizzazione, feature engineering, clustering comportamentale.
-
-- `scikit-learn`
-- `numpy`
-
----
-
-## 🔍 Nota
-Tutte le librerie sono compatibili con Python **3.10+** e con ambienti virtuali standard (`venv`/`conda`).  
-Per l’ecosistema LLM è consigliata una GPU NVIDIA con supporto CUDA, ma il sistema funziona anche in CPU per test, predizione e RAG.
-
-## 📁 Struttura del repository
-
+### Struttura del Repository
 ```bash
 Predictive_deception/
 │
@@ -196,11 +109,9 @@ Predictive_deception/
 ├── requirements.txt
 ├── .gitignore
 └── README.md
-
 ```
 
-⸻
-## 🧭 Workflow del progetto (script principali)
+## Workflow Operativo
 
 | Step | Script / File                                                | Descrizione |
 |------|--------------------------------------------------------------|-------------|
@@ -217,108 +128,7 @@ Predictive_deception/
 | 1️⃣1️⃣ | `Honeypot/roles/fakeshell/files/fakeshell.py`             | Implementa una fake shell avanzata nella VM: prompt realistico, esecuzione comandi e logging di ogni comando in `/var/log/fakeshell.json`. |
 | 1️⃣2️⃣ | `Honeypot/roles/defender/files/defender.py`                 | Versione deployabile del Defender: segue il log della fake shell, usa RAG+Gemini per predire i prossimi comandi e crea artefatti di deception nel filesystem della VM. |
 
-
-## 🧠 Note metodologiche
-
-- I modelli lavorano meglio con **prompt compatti** e **in inglese**, come quelli costruiti in  
-  `prompting/core_topk.py` e `prompting/core_rag.py`.
-
-- Le predizioni in alcuni casi vanno  **pulite e normalizzate**:  
-  usa le funzioni di parsing e confronto in `prompting/utils.py`  
-  (es. normalizzazione comandi, split per riga, gestione spazi).
-
-- È utile testare diversi valori di **context length** (`CONTEXT_LEN`), in particolare con:
-  - `prompting/evaluate_gemini_topk.py`
-  - `prompting/evaluate_gemini_rag.py`
-  - `prompting/evaluate_ollama_topk.py`
-  - `prompting/evaluate_ollama_rag.py`
-  - e nel runtime del defender (`deception/defender.py`), dove `CONTEXT_LEN` controlla quanto “passato” vede il modello.
-
-- Per valutare correttamente i modelli conviene combinare:
-  - **Exact Match** (già calcolato negli script di valutazione)
-  - **Confronto normalizzato**, usando le utility di `prompting/utils.py`
-    per ridurre l’effetto di differenze minori (spazi, quote, ecc.).
-
-- Quando usi API esterne come **Gemini** (`evaluate_gemini_*.py`, `deception/defender.py`):
-  - tieni conto di **rate limit** e possibili errori temporanei;
-  - mantieni una logica di retry/sleep leggera, così da non bloccare gli esperimenti o il defender.
-
-- Per esperimenti su larga scala è preferibile usare modelli locali via **Ollama**:
-  - `prompting/evaluate_ollama_topk.py`
-  - `prompting/evaluate_ollama_rag.py`  
-  sono pensati per girare a lungo, con loop su centinaia/migliaia di sessioni.
-
-- Usa sempre dataset **puliti e coerenti**, generati dalla pipeline:
-  - `inspectDataset/download_zenodo.py` → download dei log Cowrie
-  - `inspectDataset/analyze_and_clean.py` → pulizia, normalizzazione e statistiche
-  - `inspectDataset/merge_cowrie_datasets.py` → merge e split train/test  
-  in modo da ridurre rumore, comandi rari inutili e formati incoerenti.
-
-- Per il **RAG**:
-  - indicizza una sola volta in `chroma_storage/` usando la logica di `prompting/core_rag.py`;
-  - riutilizza lo stesso DB vettoriale sia negli script di valutazione (`evaluate_*_rag.py`)  
-    sia nel defender (`deception/defender.py`) tramite `VectorContextRetriever`;
-  - evita di ricreare la collection a ogni esecuzione: il retriever è già pensato per lavorare su un DB esistente.
----
-
-## 🔮 Lavori futuri
-
-### Fine-tuning specializzato dei modelli LLM
-- Passare dall’uso zero-/few-shot a un **fine-tuning supervisionato** di un modello locale (es. CodeLlama via Ollama).
-- Usare come dati:
-  - sequenze di comandi dai log Cowrie (`TRAIN/TEST`);
-  - log Vagrant (`fakeshell.json`);
-  - sessioni da honeypot reali in produzione.
-- Obiettivo: adattare il modello alla distribuzione reale dei comandi SSH, ridurre hallucination e migliorare la coerenza delle sequenze multi-step.  
-  Gemini rimane il riferimento “cloud”, il CodeLlama fine-tunato il motore locale per la predizione *next-command*.
-
-### Predizione multi-step e pianificazione della deception
-- Estendere la predizione dal singolo comando Top-k a **brevi traiettorie di comandi** (2–5 step).
-- Questo permette di:
-  - pre-caricare catene di artefatti lungo possibili percorsi dell’attaccante (ricognizione → config → esfiltrazione);
-  - stimare l’intenzione probabile (es. credential harvesting vs. lateral movement);
-  - orchestrare strategie di deception a livello di **sessione**, non solo di singolo comando.
-- Particolarmente utile contro script automatizzati e tool di brute forcing con sequenze deterministiche.
-
-### Deception dinamica guidata dal modello
-- Evolvere dalla creazione di pochi file isolati a una **deception dinamica** in cui il modello:
-  - suggerisce insiemi coerenti di directory, log, chiavi e configurazioni fittizie;
-  - contribuisce a simulare interi scenari di sistema (es. server applicativo con database “fantasma”);
-  - adatta la profondità dell’ingaggio in base al profilo dell’attaccante osservato.
-- In questa visione, `brain.py` diventa un **orchestratore di scenari**, che combina:
-  - predizioni LLM,
-  - knowledge storico dal RAG,
-  - policy di deception definite dall’analista.
-
-### Apprendimento continuo dai log dell’honeypot
-- Passare da un ChromaDB statico a un **RAG aggiornato continuamente**, in cui:
-  - le nuove sessioni loggate da `fakeshell.py` e dal server SSH vengono periodicamente normalizzate e indicizzate;
-  - il knowledge base si arricchisce con attacchi recenti, seguendo l’evoluzione delle tecniche offensive.
-- Integrare una pipeline automatica per:
-  - il retraining o fine-tuning incrementale del modello locale;
-  - l’aggiornamento del RAG con i nuovi log.
-- L’honeypot diventa così una sorgente continua di dati per migliorare il motore predittivo, non solo un consumatore di knowledge storico.
-
-## 📚 Riferimenti
-
-- 🐍 **Cowrie Honeypot** → https://github.com/cowrie/cowrie
-- 🪤 **Canarytokens** → https://canarytokens.org / https://github.com/thinkst/canarytokens
-- 💻 **Ollama** → https://ollama.com / https://github.com/ollama/ollama
-- 🌐 **OpenRouter API** → https://openrouter.ai
-- 🧪 **CyberLab Honeynet Dataset (Zenodo)** → https://zenodo.org/records/3687527
-- 🐼 **PANDAcap SSH Dataset** → https://zenodo.org/records/3759652
-- 🏭 **SIHD – Smart Industrial Honeypot Dataset (IEEE)** → https://ieee-dataport.org/documents/sihd-smart-industrial-honeypot-dataset
-- 🕵️ **HoneySELK Cyber Attacks Dataset (IEEE)** → https://ieee-dataport.org/open-access/dataset-cyber-attacks-honeyselk
-
-### 📘 Key Papers
-- 📄 Nawrocki et al. (2016) — "A Survey on Honeypot Software and Data Analysis"  
-- 🤖 Deng et al. (2023) — "PentestGPT: Evaluating LLMs for Automated Penetration Testing"  
-- 🛡️ Alata et al. — "Lessons Learned from High-Interaction Honeypot Deployment"  
-- 🐦 Whitham — "Canary Tokens and Deception"  
-
----
-
-## 👥 Autori
+## Autori
 
 | | | |
 |:--:|:--:|:--:|
