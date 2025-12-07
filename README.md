@@ -129,7 +129,7 @@ Operazioni da eseguire prima di creare la macchina virtuale:
 
 Una volta eseguite queste operazioni preliminari è possibile procedere con il provisioning della VM attraverso comando:
     
-    `vagrant up --provision`
+    vagrant up --provision
 
 Dopo aver creato la macchina virtuale, per poter usufruire correttamente delle sue funzionalità, è necessario eseguire ancora una serie di passaggi:
 
