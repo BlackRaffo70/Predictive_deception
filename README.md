@@ -114,18 +114,18 @@ La cartella chroma_storage, contenente il DB vettoriale, non è presente effetti
 ## Setup e Installazione
 
 Pre-requisiti (compresi di versioni utilizzate localmente per eseguire il codice):
-- Virtualbox (v7.0.x) -> fondamentale la presenza di una delle versioni specificate, in quanto in caso contrario, nelle versioni recenti dei sistemi Linux, si potrebbe incorrere in problemi di compatibilità con il kernel. 
+- Virtualbox (v7.0.x) -> fondamentale la presenza di una delle versioni specificate, in quanto in caso contrario, nelle versioni recenti dei sistemi Linux, si potrebbe incorrere in problemi di incompatibilità con il kernel. 
 - Vagrant (v2.4.1)
 
 Per quanto riguarda l'installazione della VM (macchina da 4 GB di RAM e un disco da 25GB -> 5GB in più rispetto allo standard Vagrant), è necessario scaricare la cartella "Honeypot" che contiene tutte le cartelle e i file necessari per runnare ed eseguire il provisioning della macchina virtuale. 
 
 Operazioni da eseguire prima di creare la macchina virtuale:
 
-- Role DB_vettoriale = in questo ruolo, all'interno della cartella files, deve essere presente la cartella nominata chroma_storage_ctx5, contenente il DB vettoriale. Quest'ultimo, a causa dell'elevata dimensione (circa 2GB), non è stato caricato da Github. 
+- **Role DB_vettoriale** = in questo ruolo, all'interno della cartella files, deve essere presente la cartella nominata chroma_storage_ctx5, contenente il DB vettoriale. Quest'ultimo, a causa dell'elevata dimensione (circa 2GB), non è stato caricato da Github. 
 
-- Role DB_vettoriale = in questo ruolo, all'interna della cartella vars, è presente un file dove vengono specificate alcune variabili utilizzate durante il provsioning della VM. Tra queste è presente anche la variabile gemini_api_key, che deve essere opportunamente modificata inserendo la propria chiave gemini
+- **Role DB_vettoriale** = in questo ruolo, all'interna della cartella vars, è presente un file dove vengono specificate alcune variabili utilizzate durante il provisioning della VM. Tra queste è presente anche la variabile gemini_api_key, che deve essere opportunamente modificata inserendo la propria chiave gemini
 
-- Aggiunta di memoria del disco fisso = come spiegato in precedenza, la VM presenta un disco fisso da 25 GB, mentre lo standard delle VM che vengono create tramite Vagrant presenta un disco da 20 GB. Per poter applicare questa modifica è stata inserita una riga all'interno del Vagrantfile che utilizza un plugin Vagrant da installare prima del provisioning. Quest'ultimo si installa attraverso comando:
+- **Aggiunta di memoria del disco fisso** = come spiegato in precedenza, la VM presenta un disco fisso da 25 GB, mentre lo standard delle VM che vengono create tramite Vagrant presenta un disco da 20 GB. Per poter applicare questa modifica è stata inserita una riga all'interno del Vagrantfile che utilizza un plugin Vagrant da installare prima del provisioning. Quest'ultimo si installa attraverso comando:
     
     vagrant plugin install vagrant-disksize
 
@@ -135,17 +135,22 @@ Una volta eseguite queste operazioni preliminari è possibile procedere con il p
 
 Dopo aver creato la macchina virtuale, per poter usufruire correttamente delle sue funzionalità, è necessario eseguire ancora una serie di passaggi:
 
-- Estensione della partizione e del filesystem = grazie all'operazione eseguita prima del provisioning, la VM avrà un disco virtuale più grande, ma il sistema operativo al suo interno vedrà ancora la partizione con la vecchia dimensione. Lo spazio aggiuntivo sarà "non allocato". Per rendere utilizzabili i 5GB aggiuntivi, bisogna estendere il filesystem attraverso l'esecuzione di una serie di comandi:
+- **Estensione della partizione e del filesystem** = grazie all'operazione eseguita prima del provisioning, la VM avrà un disco virtuale più grande, ma il sistema operativo al suo interno vedrà ancora la partizione con la vecchia dimensione. Lo spazio aggiuntivo sarà "non allocato". Per rendere utilizzabili i 5GB aggiuntivi, bisogna estendere il filesystem attraverso l'esecuzione di una serie di comandi:
 
     sudo apt update && sudo apt install cloud-guest-utils -y
+
     sudo growpart /dev/sda 1`
+
     sudo resize2fs /dev/sda1`
+
     df -h
 
-- Import di sentence-transformers = questo import inizialmente era stato realizzato sotto forma di task Ansible come gli altri import presenti. Tuttavia, a causa della grande quantità di dati da scaricare, il dowloading del pacchetto impiegava troppo tempo e e andava a triggerare il timeout dei task Ansible. Per questo motivo è stato rimosso, ma l'ìimport è necessario per l'esecuzione del codice. Perciò, creata la VM, il pacchetto va installato manualmente attraverso l'esecuzione dei seguenti comandi: 
+- **Import di sentence-transformers** = questo import inizialmente era stato realizzato sotto forma di task Ansible come gli altri import presenti. Tuttavia, a causa della grande quantità di dati da scaricare, il dowloading del pacchetto impiegava troppo tempo e e andava a triggerare il timeout dei task Ansible. Per questo motivo è stato rimosso, ma l'ìimport è necessario per l'esecuzione del codice. Perciò, creata la VM, il pacchetto va installato manualmente attraverso l'esecuzione dei seguenti comandi: 
 
     cd defender/
+
     source .venv/bin/activate
+
     pip install sentence-transformers
 
 ## Workflow Operativo
