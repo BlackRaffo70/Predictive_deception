@@ -126,7 +126,7 @@ Operazioni da eseguire prima di creare la macchina virtuale:
 - **Role DB_vettoriale** = in questo ruolo, all'interna della cartella vars, è presente un file dove vengono specificate alcune variabili utilizzate durante il provisioning della VM. Tra queste è presente anche la variabile gemini_api_key, che deve essere opportunamente modificata inserendo la propria chiave gemini
 
 - **Aggiunta di memoria del disco fisso** = come spiegato in precedenza, la VM presenta un disco fisso da 25 GB, mentre lo standard delle VM che vengono create tramite Vagrant presenta un disco da 20 GB. Per poter applicare questa modifica è stata inserita una riga all'interno del Vagrantfile che utilizza un plugin Vagrant da installare prima del provisioning. Quest'ultimo si installa attraverso comando:
-    
+
     vagrant plugin install vagrant-disksize
 
 Una volta eseguite queste operazioni preliminari è possibile procedere con il provisioning della VM attraverso comando:
