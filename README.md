@@ -128,28 +128,23 @@ Operazioni da eseguire prima di creare la macchina virtuale:
     `vagrant plugin install vagrant-disksize`
 
 Una volta eseguite queste operazioni preliminari è possibile procedere con il provisioning della VM attraverso comando:
+    
     `vagrant up --provision`
 
 Dopo aver creato la macchina virtuale, per poter usufruire correttamente delle sue funzionalità, è necessario eseguire ancora una serie di passaggi:
 
 - Estensione della partizione e del filesystem = grazie all'operazione eseguita prima del provisioning, la VM avrà un disco virtuale più grande, ma il sistema operativo al suo interno vedrà ancora la partizione con la vecchia dimensione. Lo spazio aggiuntivo sarà "non allocato". Per rendere utilizzabili i 5GB aggiuntivi, bisogna estendere il filesystem attraverso l'esecuzione di una serie di comandi:
-    Installa gli strumenti necessari se non ci sono"
+
     `sudo apt update && sudo apt install cloud-guest-utils -y`
-
-    "Estendi la partizione 1 del primo disco (sdX1, potrebbe anche essere vdX1)"
     `sudo growpart /dev/sda 1`
-
-    Estendi il filesystem (per ext4, il più comune)
     `sudo resize2fs /dev/sda1`
-
-    Verifica lo spazio (dovresti vedere la nuova dimensione)
     `df -h`
 
 - import di sentence-transformers = questo import inizialmente era stato realizzato sotto forma di task Ansible come gli altri import presenti. Tuttavia, a causa della grande quantità di dati da scaricare, il dowloading del pacchetto impiegava troppo tempo e e andava a triggerare il timeout dei task Ansible. Per questo motivo è stato rimosso, ma l'ìimport è necessario per l'esecuzione del codice. Perciò, creata la VM, il pacchetto va installato manualmente attraverso l'esecuzione dei seguenti comandi: 
     `cd defender/`
     `source .venv/bin/activate`
     `pip install sentence-transformers`
-    
+
 ## Workflow Operativo
 
 | Step | Script / File                                                | Descrizione |
