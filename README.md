@@ -133,7 +133,11 @@ Una volta eseguite queste operazioni preliminari è possibile procedere con il p
     
     vagrant up --provision
 
-Dopo aver creato la macchina virtuale, per poter usufruire correttamente delle sue funzionalità, è necessario eseguire ancora una serie di passaggi:
+Dopo aver creato la macchina virtuale e esservi collegato tramite comando:
+
+    vagrant ssh
+
+per poter usufruire correttamente delle sue funzionalità, è necessario eseguire ancora una serie di passaggi:
 
 - **Estensione della partizione e del filesystem** = grazie all'operazione eseguita prima del provisioning, la VM avrà un disco virtuale più grande, ma il sistema operativo al suo interno vedrà ancora la partizione con la vecchia dimensione. Lo spazio aggiuntivo sarà "non allocato". Per rendere utilizzabili i 5GB aggiuntivi, bisogna estendere il filesystem attraverso l'esecuzione di una serie di comandi:
 
